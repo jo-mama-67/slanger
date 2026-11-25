@@ -14,7 +14,7 @@ const CONFIG = {
   EPOCH: '2026-11-01',          // Dive #1
   PER_DAY: 7,
   MAX_GUESSES: 6,
-  SHARE_URL: 'slanger-game.netlify.app', // change to the real address once it is on the web
+  SHARE_URL: 'slanger-it.netlify.app', // change to the real address once it is on the web
   AUTOCORRECT_SCORE: 92,        // a typo of the answer solves it, but never reaches the Slanger
   BONUS_PER_SPARE_GUESS: 150,
   HINT_CAP: 9999,               // once a hint is taken the trench is out of reach

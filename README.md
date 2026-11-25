@@ -2,7 +2,7 @@
 
 *One in a slanger.* Read a slang definition, guess the word, and sink as deep as your guess deserves.
 
-Play it: https://slanger-game.netlify.app
+Play it: https://slanger-it.netlify.app
 
 ## What's here
 
