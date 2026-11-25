@@ -178,7 +178,7 @@ function scoreGuess(guess, puzzle) {
   best = Math.min(70, best);
   if (best > 0) {
     let label = 'Same vibe, different word.';
-    if (best === spell && spell >= tagScore) label = 'So close it hurts. Check the spelling: autocorrect won’t save this one.';
+    if (best === spell && spell >= tagScore) label = 'So close it hurts. Check the spelling — autocorrect won’t save this one.';
     else if (best === partial && partial > tagScore) label = 'Part of that lands.';
     else if (contentScore > tagScore) label = 'You found a word from the definition. Bit literal.';
     return result(best, { label, reason: 'fallback' });
@@ -416,43 +416,46 @@ function go(hash) { if (location.hash === hash) route(); else location.hash = ha
    VIEWS
    ===================================================================== */
 const MODE_CARDS = [
-  { href: '#daily', t: 'Daily Dive', d: 'Seven definitions, the same for everyone. A minute of oxygen per word.', best: () => liveStreak() ? 'Streak ' + liveStreak() : '' },
-  { href: '#endless', t: 'Endless', d: 'Word after word until you choose to surface. No streak at stake.', best: () => S.modes.endless.best ? 'Best ' + fmtM(S.modes.endless.best) : '' },
-  { href: '#speed', t: 'Speed Trench', d: 'Ninety seconds on one clock. Bank what you can and keep sinking.', best: () => S.modes.speed.best ? 'Best ' + fmtM(S.modes.speed.best) : '' },
-  { href: '#reverse', t: 'Reverse Dive', d: 'You get the word. Pick the real definition from four.', best: () => S.modes.reverse.best ? 'Best ' + fmtM(S.modes.reverse.best) : '' },
-  { href: '#party', t: 'Puffer Party', d: 'Pass-and-play for two to six divers on one phone.', best: () => S.modes.party.played ? S.modes.party.played + ' played' : '' },
-  { href: '#packs', t: 'Themed packs', d: 'Money, drunk, internet, gym, workplace and the 2000s.', best: () => '' },
-  { href: '#archive', t: 'Archive', d: 'Replay any past day with the same seven words.', best: () => '' }
+  { href: '#daily', t: 'Daily Dive', d: 'Seven definitions, the same for everyone. Sixty seconds of oxygen per word.', ic: 'dive', c: 'var(--z6)', best: () => liveStreak() ? 'Streak ' + liveStreak() : '' },
+  { href: '#endless', t: 'Endless', d: 'Word after word until you choose to surface. No streak at stake.', ic: 'loop', c: 'var(--z5)', best: () => S.modes.endless.best ? 'Best ' + fmtM(S.modes.endless.best) : '' },
+  { href: '#speed', t: 'Speed Trench', d: 'Ninety seconds on one clock. How deep can you get?', ic: 'clock', c: 'var(--hot)', best: () => S.modes.speed.best ? 'Best ' + fmtM(S.modes.speed.best) : '' },
+  { href: '#reverse', t: 'Reverse Dive', d: 'You get the word. Pick the real definition from four.', ic: 'swap', c: '#ff6bd5', best: () => S.modes.reverse.best ? 'Best ' + fmtM(S.modes.reverse.best) : '' },
+  { href: '#party', t: 'Puffer Party', d: 'Pass-and-play for two to six divers on one phone.', ic: 'party', c: 'var(--z1)', best: () => S.modes.party.played ? S.modes.party.played + ' played' : '' },
+  { href: '#packs', t: 'Themed packs', d: 'Money, Drunk, Internet, Gym, Workplace and the 2000s.', ic: 'grid', c: 'var(--z2)', best: () => '' },
+  { href: '#archive', t: 'Archive', d: 'Replay any past day. Finished ones are marked.', ic: 'cal', c: 'var(--z4)', best: () => '' },
+  { href: '#stats', t: 'Stats', d: 'Streaks, win rate, average depth and where your guesses land.', ic: 'bars', c: 'var(--z3)', best: () => '' },
+  { href: '#how', t: 'How to play', d: 'Zones, tiers, oxygen and the stingy autocorrect.', ic: 'how', c: 'var(--z0)', best: () => '' },
+  { href: '#options', t: 'Options', d: 'Content filter, motion, contrast, sound, reset.', ic: 'opts', c: '#9bb3c6', best: () => '' }
 ];
-function modeRow(m) {
+function modeCard(m) {
   const b = m.best();
-  return h('li', null, h('a', { href: m.href }, h('span', { class: 'n' }, m.t), h('span', { class: 'b num' }, b || ''), h('span', { class: 'd' }, m.d)));
+  return h('li', null, h('a', { class: 'mode', href: m.href, style: '--mc:' + m.c },
+    h('div', { class: 'ic', html: IC[m.ic], 'aria-hidden': 'true' }), h('h3', null, m.t), h('p', null, m.d), b ? h('span', { class: 'best' }, b) : null));
 }
 function viewHome() {
   document.title = 'Slanger';
-  setSeaDepth(0.3);
-  const t = todayStr(), run = S.runs[t];
+  setSeaDepth(0.36);
+  const run = S.runs[todayStr()];
   const done = run && run.done, started = run && !run.done && run.rounds.some(r => r.g.length || r.done);
-  const label = done ? 'See today’s result' : started ? 'Carry on: word ' + (run.i + 1) + ' of 7' : 'Start today’s dive';
+  const label = done ? 'See today’s result' : started ? 'Carry on: puzzle ' + (run.i + 1) + ' of 7' : 'Dive in';
   const cd = h('p', { class: 'countdown num' });
-  if (done) tick(() => { cd.textContent = 'The next dive opens in ' + hms(msToUtcMidnight()) + '.'; if (msToUtcMidnight() < 1000) route(); });
+  if (done) tick(() => { cd.textContent = 'Next daily dive in ' + hms(msToUtcMidnight()); if (msToUtcMidnight() < 1000) route(); });
   const streak = liveStreak();
-  const meta = 'Dive ' + diveNumber(t) + '. Seven words, a minute of oxygen each.' + (streak ? ' You’re on a ' + streak + '-day streak.' : '');
   return h('div', { class: 'wrap home' },
-    h('div', { class: 'homegrid' },
-      h('section', { class: 'entry', 'aria-labelledby': 'hw' },
-        h('h1', { class: 'hw', id: 'hw' }, 'slanger'),
-        h('p', { class: 'pr' }, 'slang·er  ', h('i', null, 'noun')),
-        h('ol', { class: 'senses' },
-          h('li', null, 'Someone who can name a slang word from its definition alone, before the oxygen runs out.'),
-          h('li', null, h('i', null, 'informal  '), 'Anyone who gets it first time, no hints: one in a slanger.')),
+    h('section', { class: 'hero' },
+      h('div', null,
+        h('h1', { class: 'title' }, 'Slanger'),
+        h('p', { class: 'tag' }, h('span', null, CONFIG.TAGLINE, h('i', { 'aria-hidden': 'true', html: '<svg class="scribble" viewBox="0 0 300 22" preserveAspectRatio="none"><path stroke-width="3.6" d="M3 13c38-6 71-4 109-1s72 2 104-3 52-4 81 0"/><path d="M40 19c46-4 98-3 150-2 33 1 61-1 86-3"/></svg>' }))),
+        h('p', { class: 'lede' }, 'Read a slang definition. Guess the word before your oxygen runs out. The closer you get, the deeper you sink. Nail it first time and you’re one in a slanger.'),
         h('div', { class: 'cta' },
-          h('a', { class: 'btn primary', href: '#daily', 'data-autofocus': true }, label),
-          h('p', { class: 'meta num' }, meta),
-          done ? cd : null)),
-      h('section', { 'aria-labelledby': 'more' },
-        h('h2', { class: 'sect', id: 'more' }, 'Other ways to dive'),
-        h('ul', { class: 'modelist' }, MODE_CARDS.slice(1).map(modeRow)))));
+          h('a', { class: 'btn primary', href: '#daily', 'data-autofocus': true, html: IC.down }, h('span', null, label)),
+          h('span', { class: 'chip num' }, 'Streak ' + streak),
+          S.stats.slangers ? h('span', { class: 'chip num' }, S.stats.slangers + ' Slanger' + (S.stats.slangers > 1 ? 's' : '')) : null),
+        done ? cd : null),
+      h('div', { class: 'heroart', role: 'img', 'aria-label': 'A diver sinking through zones named Gibberish, Small Talk, Buzzword, Jargon, Vernacular and Lingo towards a glowing swarm of letters.', html: heroSVG() })),
+    h('h2', { class: 'sect' }, 'Pick your dive'),
+    h('ul', { class: 'modes' }, MODE_CARDS.map(modeCard)),
+    h('p', { class: 'foot' }, 'Every definition here was written by hand for this game, not lifted from a dictionary. A few are on the cheeky side; you can hide those in ', h('a', { href: '#options' }, 'Options'), '.'));
 }
 function startScreen(o) {
   return h('div', { class: 'wrap page' },
@@ -475,11 +478,9 @@ function mountPlay(s, o) {
   UI = { lastZone: 0 };
   UI.title = h('h1');
   UI.tot = h('div', { class: 'tot num' });
-  UI.oxyBar = h('i');
-  UI.oxy = h('div', { class: 'oxy', 'aria-hidden': 'true' }, UI.oxyBar);
   const bar = h('header', { class: 'bar' },
     h('a', { class: 'back', href: o.back || '#home', 'aria-label': 'Back', html: IC.back }), UI.title,
-    o.endBtn ? h('button', { class: 'btn', type: 'button', onclick: o.endBtn.fn }, o.endBtn.label) : null, UI.tot, UI.oxy);
+    o.endBtn ? h('button', { class: 'btn', type: 'button', onclick: o.endBtn.fn }, o.endBtn.label) : null, UI.tot);
   UI.scale = h('div', { class: 'scale' });
   UI.fill = h('div', { class: 'fill' });
   UI.scale.append(UI.fill);
@@ -491,24 +492,24 @@ function mountPlay(s, o) {
   UI.diver = h('div', { class: 'diver', html: SVG.diver });
   UI.scale.append(UI.ticks, UI.diver);
   UI.gauge = h('aside', { class: 'gauge', role: 'img', 'aria-label': 'Depth gauge' }, UI.scale);
-  UI.card = h('article', { class: 'card paper' });
-  UI.oxyT = h('span', { class: 't num' });
-  UI.o2 = h('span', { class: 'o2', role: 'timer', 'aria-label': o.timer === 'global' ? 'Trench clock' : 'Oxygen for this word' }, h('span', null, o.timer === 'global' ? 'Clock' : 'Oxygen'), UI.oxyT);
-  UI.oxy.hidden = UI.o2.hidden = !o.timer;
+  UI.card = h('article', { class: 'card panel' });
+  UI.oxyBar = h('i'); UI.oxyT = h('span', { class: 't num' });
+  UI.oxy = h('div', { class: 'oxy', role: 'timer', 'aria-label': o.timer === 'global' ? 'Trench clock' : 'Oxygen for this word' },
+    h('b', null, o.timer === 'global' ? 'CLOCK' : 'O₂'), h('div', { class: 'trk' }, UI.oxyBar), UI.oxyT);
+  UI.oxy.hidden = !o.timer;
   UI.pips = h('div', { class: 'air', 'aria-hidden': 'true' });
   UI.airlab = h('span', { class: 'airlab num' });
-  UI.hints = o.hints ? h('div', { class: 'hints', id: 'hintset', role: 'group', 'aria-label': 'Hints, each costs depth', hidden: true }) : null;
-  UI.hintTog = o.hints ? h('button', { class: 'hinttog', type: 'button', 'aria-expanded': 'false', 'aria-controls': 'hintset', onclick: () => toggleHints() }, 'Hints', h('span', { html: IC.caret, 'aria-hidden': 'true', style: 'display:inline-flex' })) : null;
-  UI.airrow = h('div', { class: 'airrow' }, UI.pips, UI.airlab, UI.o2, UI.hintTog);
-  UI.input = h('input', { type: 'text', id: 'guess', name: 'guess', maxlength: '40', autocomplete: 'off', autocapitalize: 'off', autocorrect: 'off', spellcheck: 'false', enterkeyhint: 'go', placeholder: 'your guess', 'aria-label': 'Your guess', 'data-autofocus': true });
+  UI.airrow = h('div', { class: 'airrow' }, UI.pips, UI.airlab);
+  UI.input = h('input', { type: 'text', id: 'guess', name: 'guess', maxlength: '40', autocomplete: 'off', autocapitalize: 'off', autocorrect: 'off', spellcheck: 'false', enterkeyhint: 'go', placeholder: 'Your guess', 'aria-label': 'Your guess', 'data-autofocus': true });
   UI.dive = h('button', { class: 'btn primary', type: 'submit' }, 'Dive');
   UI.form = h('form', { class: 'guess', onsubmit: onSubmit }, UI.input, UI.dive);
-  UI.skip = o.skip ? h('button', { class: 'btn small skipbtn', type: 'button', onclick: onSkip }, 'Skip this word') : null;
+  UI.skip = o.skip ? h('button', { class: 'btn small skipbtn', type: 'button', onclick: onSkip }, 'Skip word') : null;
   UI.msg = h('p', { class: 'msgline', role: 'status' });
   UI.result = h('div', { class: 'result' });
+  UI.hints = o.hints ? h('div', { class: 'hints', role: 'group', 'aria-label': 'Hints, each costs depth' }) : null;
   UI.log = h('ol', { class: 'log', 'aria-label': 'Your guesses, deepest first' });
-  UI.loghead = h('div', { class: 'loghead' }, h('h2', null, 'Your guesses'), h('span', { class: 'airlab' }, 'deepest first'));
-  UI.play = h('div', { class: 'col' }, UI.card, UI.form, UI.airrow, UI.hints, UI.skip, UI.msg, UI.result, UI.loghead, UI.log);
+  UI.loghead = h('div', { class: 'loghead' }, h('h2', null, 'Dive log'), h('span', { class: 'airlab' }, 'deepest first'));
+  UI.play = h('div', { class: 'col' }, UI.card, UI.oxy, UI.airrow, UI.form, UI.skip, UI.msg, UI.result, UI.hints, UI.loghead, UI.log);
   const root = h('div', null, bar, h('div', { class: 'play' }, UI.gauge, UI.play));
   renderPuzzle(false);
   return root;
@@ -526,9 +527,8 @@ function renderPuzzle(animate) {
   else if (gated) UI.card.replaceChildren(...gateCard(o.gate(s.i)));
   else UI.card.replaceChildren(...questionCard(p, r));
   if (animate && motionOK()) { UI.card.classList.remove('slide', 'in'); void UI.card.offsetWidth; UI.card.classList.add('slide'); }
-  [UI.form, UI.airrow, UI.skip].forEach(el => { if (el) el.hidden = !active; });
-  if (UI.hints) UI.hints.hidden = !active || !UI.hintsOpen;
-  UI.oxy.hidden = UI.o2.hidden = !o.timer || gated || (o.timer === 'word' && r.done);
+  [UI.form, UI.airrow, UI.hints, UI.skip].forEach(el => { if (el) el.hidden = !active; });
+  UI.oxy.hidden = !o.timer || gated || (o.timer === 'word' && r.done);
   UI.input.disabled = UI.dive.disabled = !active;
   UI.msg.textContent = '';
   UI.lastZone = zoneIndexFor(r.best);
@@ -539,20 +539,13 @@ function renderPuzzle(animate) {
   if (active && o.timer) startClock();
   if (animate) { const f = gated ? UI.card.querySelector('button') : UI.input; if (f) f.focus({ preventScroll: true }); }
 }
-function toggleHints(force) {
-  if (!UI.hints) return;
-  UI.hintsOpen = force != null ? force : !UI.hintsOpen;
-  UI.hintTog.setAttribute('aria-expanded', String(UI.hintsOpen));
-  const { r } = cur();
-  UI.hints.hidden = !UI.hintsOpen || r.done;
-}
 function gateCard(name) {
   const { r } = cur();
   return [h('div', { class: 'gate' },
     h('p', { class: 'kicker' }, 'Pass the phone to'),
     h('h2', { class: 'who' }, name),
-    h('p', null, 'Everyone else, look away. Your minute of oxygen starts when you tap.'),
-    h('button', { class: 'btn primary', type: 'button', 'data-autofocus': true, onclick: () => { r.started = true; save(); sound('dive'); renderPuzzle(true); } }, 'I’m ' + name + ', start'))];
+    h('p', null, 'Everyone else, look away. Your sixty seconds of oxygen start when you tap.'),
+    h('button', { class: 'btn primary', type: 'button', 'data-autofocus': true, onclick: () => { r.started = true; save(); sound('dive'); renderPuzzle(true); } }, 'I’m ' + name + ' — dive'))];
 }
 function questionCard(p, r) {
   const peek = r.h.includes('peek');
@@ -560,16 +553,15 @@ function questionCard(p, r) {
   const ex = h('p', { class: 'ex' });
   parts.forEach((part, i) => {
     ex.append(part);
-    if (i < parts.length - 1) ex.append(peek ? h('span', { class: 'mask', 'aria-label': 'partly hidden word ' + peekPattern(p.term).split('').join(' ') }, peekPattern(p.term))
-      : h('span', { class: 'mask blank', 'aria-label': 'hidden word' }, '?????'));
+    if (i < parts.length - 1) ex.append(h('span', { class: 'mask', 'aria-label': peek ? 'partly hidden word ' + peekPattern(p.term).split('').join(' ') : 'hidden word' }, peek ? peekPattern(p.term) : '▇▇▇▇▇'));
   });
   const chips = r.h.filter(k => k !== 'peek').map(k => h('span', { class: 'chip' }, hintText(k, p)));
-  return [h('h2', { class: 'sr' }, 'Definition'), h('p', { class: 'def' }, p.definition), ex, chips.length ? h('div', { class: 'hintout' }, chips) : null].filter(Boolean);
+  return [h('p', { class: 'kicker' }, 'Definition'), h('p', { class: 'def' }, p.definition), ex, chips.length ? h('div', { class: 'hintout' }, chips) : null].filter(Boolean);
 }
 function renderAir(r) {
   const left = CONFIG.MAX_GUESSES - r.g.length;
   UI.pips.replaceChildren(...Array.from({ length: CONFIG.MAX_GUESSES }, (_, i) => h('span', { class: 'pip' + (i >= left ? ' used' : '') })));
-  UI.airlab.textContent = left + (left === 1 ? ' guess left' : ' guesses left');
+  UI.airlab.textContent = left + ' of ' + CONFIG.MAX_GUESSES + ' guesses left';
 }
 function renderHints(r, p) {
   UI.hints.replaceChildren(...CONFIG.HINTS.map(hd => {
@@ -584,7 +576,7 @@ function renderLog(r) {
     h('span', { class: 'w' }, g.c ? [h('s', { 'aria-label': 'typed ' + g.t }, g.t), g.c] : g.t),
     h('span', { class: 'd num' }, fmtM(g.d)),
     h('span', { class: 'sub' }, h('span', { class: 'zc z' + g.z }, CONFIG.ZONES[g.z].name),
-      g.cue === 'first' ? null : h('span', { class: 'cue' + (g.cue === 'deeper' ? ' deeper' : '') }, g.cue === 'deeper' ? 'deeper' : 'no deeper'), h('span', null, 'guess ' + g.n)))));
+      g.cue === 'first' ? h('span', null, 'first dive') : h('span', { class: 'cue' + (g.cue === 'deeper' ? ' deeper' : '') }, g.cue), h('span', null, '· guess ' + g.n)))));
   UI.loghead.hidden = !r.g.length;
 }
 function renderGauge(r, instant) {
@@ -600,7 +592,7 @@ function showResult(g) {
   UI.result.replaceChildren(
     h('div', { class: 'top' }, h('span', { class: 'm num' }, fmtM(g.d)), h('span', { class: 'zc z' + g.z }, CONFIG.ZONES[g.z].name),
       g.cue === 'first' ? null : h('span', { class: 'cue' + (g.cue === 'deeper' ? ' deeper' : '') }, g.cue)),
-    h('p', null, h('q', null, g.c || g.t), ' ' + g.l));
+    h('p', null, '“' + (g.c || g.t) + '” — ' + g.l));
   void UI.result.offsetWidth; UI.result.classList.add('show');
 }
 
@@ -635,7 +627,6 @@ function drawOxy(left) {
   UI.oxyBar.style.transform = 'scaleX(' + Math.max(0, left / total).toFixed(4) + ')';
   UI.oxyT.textContent = mss(left);
   UI.oxy.classList.toggle('low', left <= 10000 && left > 0);
-  UI.o2.classList.toggle('low', left <= 10000 && left > 0);
 }
 function timeUp() {
   const { o, r, p } = cur();
@@ -724,7 +715,7 @@ function takeHint(key) {
 function showReveal(animate) {
   const { s, o, r, p } = cur();
   [UI.form, UI.hints, UI.airrow, UI.skip].forEach(el => { if (el) el.hidden = true; });
-  UI.oxy.hidden = UI.o2.hidden = true;
+  UI.oxy.hidden = true;
   UI.result.classList.remove('show');
   const z = zoneIndexFor(r.best);
   const parts = p.example.split('___');
@@ -732,9 +723,9 @@ function showReveal(animate) {
   parts.forEach((part, i) => { ex.append(part); if (i < parts.length - 1) ex.append(h('mark', null, p.term.toLowerCase())); });
   const score = h('b', { class: 'num' }, fmtM(animate ? 0 : r.final));
   const next = h('button', { class: 'btn primary next', type: 'button', onclick: () => { sound('dive'); o.onNext(); } }, o.nextLabel());
-  const badge = r.slanger ? h('div', { class: 'badge sl' }, 'One in a slanger')
+  const badge = r.slanger ? h('div', { class: 'stamp', role: 'img', 'aria-label': 'Stamped: one in a slanger' }, 'One in a slanger', h('small', { 'aria-hidden': 'true' }, 'First guess. No hints.'))
     : r.ac ? h('div', { class: 'badge ac' }, 'Autocorrected. Solved, but typos don’t reach the bottom.')
-    : r.solved ? h('div', { class: 'badge sl' }, 'Found in ' + r.g.length + (r.g.length === 1 ? ' guess' : ' guesses'))
+    : r.solved ? h('div', { class: 'stamp solved', role: 'img', 'aria-label': 'Stamped: found in ' + r.g.length + ' guesses' }, 'Found it', h('small', { 'aria-hidden': 'true' }, 'in ' + r.g.length + ' guesses'))
     : r.out === 'time' ? h('div', { class: 'badge out' }, 'Out of oxygen')
     : h('div', { class: 'badge out' }, 'Out of guesses');
   const content = h('div', { class: 'reveal' },
@@ -743,7 +734,7 @@ function showReveal(animate) {
     h('p', { class: 'pos' }, p.pos),
     h('p', { class: 'def' }, p.definition), ex, badge,
     h('dl', { class: 'tally' },
-      h('dt', null, 'Deepest'), h('dd', { class: 'num' }, fmtM(r.bestDepth) + ', ' + CONFIG.ZONES[z].name),
+      h('dt', null, 'Deepest'), h('dd', { class: 'num' }, fmtM(r.bestDepth) + ' · ' + CONFIG.ZONES[z].name),
       r.pen ? [h('dt', null, 'Hints (' + r.h.length + ')'), h('dd', { class: 'num' }, '−' + fmtM(r.pen))] : null,
       r.bonus ? [h('dt', null, 'Spare guesses'), h('dd', { class: 'num' }, '+' + fmtM(r.bonus))] : null,
       r.tb ? [h('dt', null, 'Oxygen left'), h('dd', { class: 'num' }, '+' + fmtM(r.tb))] : null,
@@ -790,13 +781,13 @@ function viewDaySummary(run, archive) {
   const solved = run.rounds.filter(r => r.solved).length;
   const text = shareText(run);
   const cd = archive ? null : h('p', { class: 'countdown num' });
-  if (cd) tick(() => { cd.textContent = 'The next dive opens in ' + hms(msToUtcMidnight()) + ', at midnight UTC.'; if (msToUtcMidnight() < 1000) route(); });
+  if (cd) tick(() => { cd.textContent = 'Next daily dive in ' + hms(msToUtcMidnight()) + ' (midnight UTC)'; if (msToUtcMidnight() < 1000) route(); });
   const dp = byId(run.ids[deepest.i]);
   return resultsView({
-    kicker: (archive ? 'Archive dive #' : 'Daily Dive #') + run.no + ', surfaced',
+    kicker: (archive ? 'Archive #' : 'Daily Dive #') + run.no + ' · surfaced',
     total: run.total, back: archive ? '#archive' : '#home', backLabel: archive ? 'Archive' : 'Home',
     lede: solved + ' of 7 words found. ' + (run.rounds.some(r => r.slanger) ? 'You were one in a slanger at least once.' : 'No first-guess Slangers this time.'),
-    stats: [[fmtM(deepest.d), 'deepest, on ' + dp.term], [guesses + ' of 42', 'guesses used'], [String(hints), hints === 1 ? 'hint taken' : 'hints taken'], archive ? [String(run.rounds.filter(r => r.out === 'time').length), 'ran out of oxygen'] : [String(liveStreak()), 'day streak, best ' + S.streak.max]],
+    stats: [[fmtM(deepest.d), 'deepest · ' + dp.term], [guesses + ' / 42', 'guesses used'], [String(hints), hints === 1 ? 'hint taken' : 'hints taken'], archive ? [String(run.rounds.filter(r => r.out === 'time').length), 'ran out of oxygen'] : [String(liveStreak()), 'day streak · best ' + S.streak.max]],
     share: text, after: cd,
     listTitle: archive ? 'That day’s seven' : 'Today’s seven',
     items: run.rounds.map((r, i) => ({ id: run.ids[i], r }))
@@ -809,15 +800,16 @@ function viewArchive() {
   for (let d = t; d >= CONFIG.EPOCH; d = shiftDay(d, -1)) days.push(d);
   const fmt = d => new Date(d + 'T12:00:00Z').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
   return h('div', { class: 'wrap page' },
+    h('p', { class: 'kicker' }, 'Archive'),
     h('h1', { tabindex: '-1', 'data-autofocus': true }, 'Every dive so far'),
     h('p', { class: 'intro' }, 'Replay any past day with the same seven words everyone got. Archive dives don’t touch your streak.'),
     h('ol', { class: 'days' }, days.map(d => {
       const run = S.runs[d], isToday = d === t;
       const st = run && run.done ? fmtM(run.total) : run && run.rounds.some(r => r.g.length) ? 'In progress' : 'Not played';
-      return h('li', null, h('a', { href: isToday ? '#daily' : '#day-' + d },
-        h('b', null, isToday ? 'Today' : fmt(d)),
-        h('span', { class: 'st num' + (run && run.done ? ' done' : '') }, st),
-        h('span', { class: 'num' }, 'Dive ' + diveNumber(d) + (run && run.done ? ', ' + run.rounds.filter(r => r.solved).length + ' of 7 found' + (run.rounds.some(r => r.slanger) ? ', with a Slanger' : '') : ''))));
+      return h('li', null, h('a', { class: 'panel', href: isToday ? '#daily' : '#day-' + d },
+        h('b', null, '#' + diveNumber(d) + ' · ' + (isToday ? 'Today' : fmt(d))),
+        h('span', { class: 'st num', style: run && run.done ? 'color:var(--acc)' : '' }, st),
+        h('span', null, run && run.done ? run.rounds.filter(r => r.solved).length + ' of 7 found' + (run.rounds.some(r => r.slanger) ? ' · Slanger' : '') : isToday ? 'Today’s daily dive' : 'Tap to dive')));
     })));
 }
 
@@ -828,14 +820,14 @@ function viewEndless() {
   document.title = 'Endless · Slanger';
   setSeaDepth(0.5);
   return startScreen({
-    kicker: 'Endless', title: 'Keep sinking', intro: 'One word after another, a minute of oxygen each, until you choose to surface. Words get harder the deeper you go. Your run keeps everything you bank.',
+    kicker: 'Endless', title: 'Keep sinking', intro: 'One word after another, sixty seconds of oxygen each, until you choose to surface. Words get harder the deeper you go. Your run keeps everything you bank.',
     stats: [['best run', M.best ? fmtM(M.best) : '—'], ['runs', String(M.played)], ['words dived', String(M.words)]],
     start: () => { M.run = { kind: 'endless', ids: [pickRandom(new Set(), 1).id], i: 0, rounds: [newRound()], done: false }; save(); route(); }
   });
 }
 function playEndless(run) {
   return mountPlay(run, {
-    title: () => 'Endless', sub: () => 'Word ' + (run.i + 1) + ', surface any time', back: '#home', timer: 'word', hints: true,
+    title: () => 'Endless', sub: () => 'Word ' + (run.i + 1) + ' · surface any time', back: '#home', timer: 'word', hints: true,
     total: () => sumFinals(run), endBtn: { label: 'Surface', fn: endEndless }, nextLabel: () => 'Next word',
     onNext: () => {
       const used = new Set(run.ids.slice(-50));
@@ -853,7 +845,7 @@ function endEndless() {
   const newBest = total > M.best;
   M.played++; M.words += items.length; M.best = Math.max(M.best, total);
   M.run = null; save();
-  showResults({ kicker: 'Endless, surfaced', total, newBest, back: '#endless', backLabel: 'Endless',
+  showResults({ kicker: 'Endless · surfaced', total, newBest, back: '#endless', backLabel: 'Endless',
     lede: items.length + (items.length === 1 ? ' word' : ' words') + ' dived. ' + (newBest ? 'New best run.' : 'Best run: ' + fmtM(M.best) + '.'),
     share: CONFIG.NAME + ' Endless · ' + fmtM(total) + ' over ' + items.length + ' words\n' + CONFIG.SHARE_URL,
     items, again: () => { M.run = { kind: 'endless', ids: [pickRandom(new Set(), 1).id], i: 0, rounds: [newRound()], done: false }; save(); go('#endless'); } });
@@ -864,14 +856,17 @@ function viewPacks() {
   document.title = 'Themed packs · Slanger';
   setSeaDepth(0.45);
   const M = S.modes.packs, act = M.run && !M.run.done ? CONFIG.PACKS.find(x => x.key === M.run.pack) : null;
+  const colors = ['var(--z1)', 'var(--z2)', 'var(--z5)', 'var(--z3)', 'var(--z4)', '#ff6bd5'];
   return h('div', { class: 'wrap page' },
-    h('h1', { tabindex: '-1' }, 'Themed packs'),
+    h('p', { class: 'kicker' }, 'Themed packs'),
+    h('h1', { tabindex: '-1' }, 'Pick a pack'),
     h('p', { class: 'intro' }, 'Up to ' + CONFIG.PACK_SIZE + ' words from one corner of slang, in a fresh order every time.'),
     act ? h('div', { class: 'rowbtns' }, h('a', { class: 'btn primary', href: '#pack-play', 'data-autofocus': true }, 'Resume the ' + act.name + ' pack')) : null,
-    h('ul', { class: 'modelist', style: 'margin-top:28px' }, CONFIG.PACKS.map((pk, i) => {
+    h('ul', { class: 'packs' }, CONFIG.PACKS.map((pk, i) => {
       const n = Math.min(CONFIG.PACK_SIZE, packPuzzles(pk.key).length), best = M.best[pk.key];
-      return h('li', null, h('button', { type: 'button', 'data-autofocus': !act && i === 0 ? true : null, onclick: () => startPack(pk.key) },
-        h('span', { class: 'n' }, pk.name), h('span', { class: 'b num' }, best ? 'Best ' + fmtM(best) : n + ' words'), h('span', { class: 'd' }, pk.blurb)));
+      return h('li', null, h('button', { class: 'mode', type: 'button', style: '--mc:' + colors[i], 'data-autofocus': !act && i === 0 ? true : null, onclick: () => startPack(pk.key) },
+        h('div', { class: 'ic', html: IC.grid, 'aria-hidden': 'true' }), h('h3', null, pk.name), h('p', null, pk.blurb + ' ' + n + ' words.'),
+        h('span', { class: 'best' }, best ? 'Best ' + fmtM(best) : 'Not played yet')));
     })));
 }
 function startPack(key) {
@@ -890,7 +885,7 @@ function viewPackPlay() {
       if (run.i < run.ids.length - 1) { run.i++; save(); renderPuzzle(true); window.scrollTo(0, 0); return; }
       const M = S.modes.packs, total = sumFinals(run), newBest = total > (M.best[pk.key] || 0);
       M.best[pk.key] = Math.max(M.best[pk.key] || 0, total); M.played[pk.key] = (M.played[pk.key] || 0) + 1; M.run = null; save();
-      showResults({ kicker: pk.name + ' pack, surfaced', total, newBest, back: '#packs', backLabel: 'Packs',
+      showResults({ kicker: pk.name + ' pack · surfaced', total, newBest, back: '#packs', backLabel: 'Packs',
         lede: run.rounds.filter(r => r.solved).length + ' of ' + run.ids.length + ' found. ' + (newBest ? 'New best for this pack.' : 'Pack best: ' + fmtM(M.best[pk.key]) + '.'),
         share: CONFIG.NAME + ' · ' + pk.name + ' pack · ' + fmtM(total) + '\n' + CONFIG.SHARE_URL,
         items: run.rounds.map((r, i) => ({ id: run.ids[i], r })), again: () => startPack(pk.key) });
@@ -905,7 +900,7 @@ function viewSpeed() {
   document.title = 'Speed Trench · Slanger';
   setSeaDepth(0.6);
   return startScreen({
-    kicker: 'Speed Trench', title: 'Ninety seconds', intro: 'One clock for the whole dive. Each word banks the deepest guess you make on it. No hints, no bonuses. Solve it or skip it and keep sinking.',
+    kicker: 'Speed Trench', title: 'Ninety seconds', intro: 'One clock for the whole dive. Each word banks the deepest guess you make on it. No hints, no bonuses — solve it or skip it and keep sinking.',
     stats: [['best', M.best ? fmtM(M.best) : '—'], ['dives', String(M.played)]], startLabel: 'Start the clock',
     start: () => { M.run = { kind: 'speed', ids: [pickRandom(new Set(), 1).id], i: 0, rounds: [newRound()], tl: CONFIG.SPEED_MS, done: false }; save(); route(); }
   });
@@ -935,7 +930,7 @@ function finishSpeed(run) {
   M.best = Math.max(M.best, total); M.played++; M.run = null; save();
   sound('surface');
   const items = run.rounds.map((x, i) => ({ id: run.ids[i], r: x })).filter(x => x.r.g.length || x.r.solved);
-  showResults({ kicker: 'Speed Trench, time up', total, newBest, back: '#speed', backLabel: 'Speed Trench',
+  showResults({ kicker: 'Speed Trench · time', total, newBest, back: '#speed', backLabel: 'Speed Trench',
     lede: run.rounds.filter(x => x.solved).length + ' solved in 90 seconds. ' + (newBest ? 'New best.' : 'Best: ' + fmtM(M.best) + '.'),
     share: CONFIG.NAME + ' Speed Trench · ' + fmtM(total) + ' in 90s · ' + run.rounds.filter(x => x.solved).length + ' solved\n' + CONFIG.SHARE_URL,
     items, again: () => { M.run = { kind: 'speed', ids: [pickRandom(new Set(), 1).id], i: 0, rounds: [newRound()], tl: CONFIG.SPEED_MS, done: false }; save(); go('#speed'); } });
@@ -949,7 +944,7 @@ function viewReverse() {
   document.title = 'Reverse Dive · Slanger';
   setSeaDepth(0.4);
   return startScreen({
-    kicker: 'Reverse Dive', title: 'Flip it', intro: 'You get the word. Pick its real definition from four. A minute per word, and the faster you’re right, the deeper you go.',
+    kicker: 'Reverse Dive', title: 'Flip it', intro: 'You get the word. Pick its real definition from four. Sixty seconds per word — the faster you’re right, the deeper you go.',
     stats: [['best', M.best ? fmtM(M.best) : '—'], ['dives', String(M.played)]],
     start: () => {
       const all = pool(), qs = shuffle(all).slice(0, CONFIG.REVERSE_QS).map(p => {
@@ -967,12 +962,11 @@ function revPlay() {
   setSeaDepth(Math.min(0.95, REV.i / CONFIG.REVERSE_QS * 0.95));
   const tot = h('div', { class: 'tot num' }, fmtM(REV.total), h('small', null, 'total'));
   const oxyBar = h('i'), oxyT = h('span', { class: 't num' });
-  const oxy = h('div', { class: 'oxy', 'aria-hidden': 'true' }, oxyBar);
-  const o2 = h('span', { class: 'o2', role: 'timer', 'aria-label': 'Oxygen for this word' }, h('span', null, 'Oxygen'), oxyT);
+  const oxy = h('div', { class: 'oxy', role: 'timer', 'aria-label': 'Oxygen for this word' }, h('b', null, 'O₂'), h('div', { class: 'trk' }, oxyBar), oxyT);
   const msg = h('p', { class: 'msgline', role: 'status' });
   const next = h('button', { class: 'btn primary next', type: 'button', hidden: true, onclick: () => { REV.i++; if (REV.i >= REV.qs.length) finishReverse(); else route(); } }, REV.i >= REV.qs.length - 1 ? 'See your dive' : 'Next word');
   const btns = q.opts.map(id => h('button', { type: 'button', 'data-id': id, onclick: () => answer(id) }, byId(id).definition));
-  const draw = left => { oxyBar.style.transform = 'scaleX(' + (left / CONFIG.WORD_MS).toFixed(4) + ')'; oxyT.textContent = mss(left); oxy.classList.toggle('low', left <= 10000 && left > 0); o2.classList.toggle('low', left <= 10000 && left > 0); };
+  const draw = left => { oxyBar.style.transform = 'scaleX(' + (left / CONFIG.WORD_MS).toFixed(4) + ')'; oxyT.textContent = mss(left); oxy.classList.toggle('low', left <= 10000 && left > 0); };
   let deadline = performance.now() + q.tl, last = -1, id = 0;
   const stop = () => { if (id) { clearInterval(id); id = 0; } };
   const answer = pick => {
@@ -983,7 +977,7 @@ function revPlay() {
     REV.total += q.pts;
     btns.forEach(b => { b.disabled = true; if (b.dataset.id === q.id) b.classList.add('right'); else if (b.dataset.id === pick) b.classList.add('wrong'); });
     tot.replaceChildren(fmtM(REV.total), h('small', null, 'total'));
-    if (right) { wordBurst(p.term, 6, 'exact', 'Correct, +' + fmtM(q.pts)); sound('exact'); setSeaDepth(Math.min(0.95, (REV.i + 1) / CONFIG.REVERSE_QS * 0.95)); }
+    if (right) { wordBurst(p.term, 6, 'exact', 'Correct · +' + fmtM(q.pts)); sound('exact'); setSeaDepth(Math.min(0.95, (REV.i + 1) / CONFIG.REVERSE_QS * 0.95)); }
     else { sound(pick ? 'wrong' : 'timeout'); }
     msg.textContent = right ? 'Correct. +' + fmtM(q.pts) + '.' : (pick ? 'Not that one.' : 'Out of oxygen.') + ' The real one is highlighted.';
     announce(msg.textContent);
@@ -1005,11 +999,11 @@ function revPlay() {
   }
   return h('div', null,
     h('header', { class: 'bar' }, h('a', { class: 'back', href: '#home', 'aria-label': 'Back', html: IC.back }),
-      h('h1', null, 'Reverse Dive', h('small', null, 'Word ' + (REV.i + 1) + ' of ' + REV.qs.length)), tot, oxy),
-    h('div', { class: 'wrap revwrap' },
-      h('article', { class: 'card paper slide' }, h('p', { class: 'kicker' }, 'What does this mean?'), h('h2', { class: 'bigterm' }, p.term), h('p', { class: 'revpos' }, p.pos)),
-      h('div', { class: 'airrow', style: 'margin-top:16px' }, o2),
-      h('div', { class: 'rq', role: 'group', 'aria-label': 'Possible definitions' }, btns), h('div', { style: 'margin-top:14px' }, msg), next));
+      h('h1', null, 'Reverse Dive', h('small', null, 'Word ' + (REV.i + 1) + ' of ' + REV.qs.length)), tot),
+    h('div', { class: 'wrap', style: 'padding-top:16px;max-width:720px' },
+      h('article', { class: 'card panel slide' }, h('p', { class: 'kicker' }, 'Which one means'), h('h2', { class: 'bigterm' }, p.term), h('p', { class: 'reveal pos', style: 'margin:0;color:var(--mute);font-style:italic' }, p.pos)),
+      h('div', { style: 'margin-top:12px' }, oxy),
+      h('div', { class: 'rq', role: 'group', 'aria-label': 'Possible definitions' }, btns), msg, next));
 }
 function finishReverse() {
   REV.done = true;
@@ -1017,7 +1011,7 @@ function finishReverse() {
   M.best = Math.max(M.best, REV.total); M.played++; save();
   const right = REV.qs.filter(q => q.pick === q.id).length;
   sound('surface');
-  showResults({ kicker: 'Reverse Dive, surfaced', total: REV.total, newBest, back: '#reverse', backLabel: 'Reverse Dive',
+  showResults({ kicker: 'Reverse Dive · surfaced', total: REV.total, newBest, back: '#reverse', backLabel: 'Reverse Dive',
     lede: right + ' of ' + REV.qs.length + ' right. ' + (newBest ? 'New best.' : 'Best: ' + fmtM(M.best) + '.'),
     share: CONFIG.NAME + ' Reverse Dive · ' + fmtM(REV.total) + ' · ' + right + '/' + REV.qs.length + '\n' + CONFIG.SHARE_URL,
     items: REV.qs.map(q => ({ id: q.id, note: q.pick === q.id ? 'Right · +' + fmtM(q.pts) : q.pick ? 'Wrong' : 'Out of oxygen' })),
@@ -1051,10 +1045,10 @@ function viewParty() {
   return h('div', { class: 'wrap page' },
     h('p', { class: 'kicker' }, 'Puffer Party'),
     h('h1', { tabindex: '-1' }, 'Pass the phone'),
-    h('p', { class: 'intro' }, 'Two to six divers, one device. Everyone gets the same number of words at matching difficulty, with a minute of oxygen each. Deepest total wins.'),
+    h('p', { class: 'intro' }, 'Two to six divers, one device. Everyone gets the same number of words at matching difficulty, with sixty seconds of oxygen each. Deepest total wins.'),
     act ? h('div', { class: 'rowbtns' }, h('a', { class: 'btn primary', href: '#party-play', 'data-autofocus': true }, 'Resume the party in progress'),
       h('button', { class: 'btn', type: 'button', onclick: () => { M.run = null; save(); route(); } }, 'Abandon it')) : null,
-    h('section', { class: 'block' },
+    h('section', { class: 'block panel' },
       h('h2', null, 'Divers'), list,
       h('button', { class: 'btn small', type: 'button', onclick: () => { addRow(''); const ins = list.querySelectorAll('input'); ins[ins.length - 1].focus(); } }, 'Add a diver'),
       h('div', { class: 'field' }, h('label', { for: 'per' }, 'Words per diver'), per),
@@ -1076,7 +1070,7 @@ function viewPartyPlay() {
   if (!run || run.done) return viewParty();
   const n = run.players.length, who = i => run.players[i % n];
   return mountPlay(run, {
-    title: () => 'Puffer Party', sub: () => who(run.i) + ', word ' + (Math.floor(run.i / n) + 1) + ' of ' + run.per,
+    title: () => 'Puffer Party', sub: () => who(run.i) + ' · word ' + (Math.floor(run.i / n) + 1) + ' of ' + run.per,
     back: '#party', timer: 'word', hints: true, gate: i => who(i),
     total: () => partyTotals(run)[run.i % n], totalLabel: () => who(run.i) + '’s total',
     nextLabel: () => run.i >= run.ids.length - 1 ? 'See who sank deepest' : 'Pass to ' + who(run.i + 1),
@@ -1095,14 +1089,14 @@ function finishParty(run) {
   stopClock(); P = null; document.body.classList.remove('playing');
   setSeaDepth(0.9);
   const view = h('div', { class: 'wrap sum' },
-    h('p', { class: 'kicker' }, 'Puffer Party results'),
-    h('h1', { class: 'winner', tabindex: '-1' }, tie ? 'It’s a tie' : order[0].name),
+    h('p', { class: 'kicker' }, 'Puffer Party · results'),
+    h('h1', { class: 'totalbig', tabindex: '-1', style: 'color:var(--z1);text-shadow:0 0 34px rgba(255,207,61,.6)' }, tie ? 'It’s a tie' : order[0].name),
     h('p', { class: 'lede' }, tie ? 'Dead level at the top. Rematch?' : 'Sank deepest with ' + fmtM(order[0].total) + '.'),
-    h('ol', { class: 'board' }, order.map((o, i) => h('li', { class: i === 0 && !tie ? 'win' : null },
-      h('span', { class: 'rk num' }, String(i + 1)), h('span', null, h('span', { class: 'nm' }, o.name), o.slangers ? h('span', { class: 'chip', style: 'margin-left:10px;vertical-align:4px' }, o.slangers + ' Slanger' + (o.slangers > 1 ? 's' : '')) : null), h('span', { class: 'sc num' }, fmtM(o.total))))),
+    h('ol', { class: 'board' }, order.map((o, i) => h('li', { class: 'panel' + (i === 0 ? ' win' : '') },
+      h('span', { class: 'rk num' }, String(i + 1)), h('span', null, h('span', { class: 'nm' }, o.name), o.slangers ? h('span', { class: 'chip', style: 'margin-left:8px' }, o.slangers + ' Slanger' + (o.slangers > 1 ? 's' : '')) : null), h('span', { class: 'sc num' }, fmtM(o.total))))),
     h('div', { class: 'rowbtns' }, h('button', { class: 'btn primary', type: 'button', 'data-autofocus': true, onclick: () => startParty(run.players, run.per) }, 'Rematch'), h('a', { class: 'btn', href: '#party' }, 'New party'), h('a', { class: 'btn', href: '#home' }, 'Home')));
   $('#view').replaceChildren(view); window.scrollTo(0, 0); focusFirst();
-  if (!tie) setTimeout(() => wordBurst(order[0].name, 6, 'exact', 'Sank deepest'), 250);
+  if (!tie) setTimeout(() => wordBurst(order[0].name, 1, 'exact', 'Sank deepest'), 250);
   sound('slanger');
 }
 
@@ -1112,10 +1106,10 @@ function resultsView(o) {
   const big = h('p', { class: 'totalbig num' }, fmtM(motionOK() ? 0 : o.total));
   if (motionOK()) setTimeout(() => countUp(big, o.total, 1400), 150);
   const status = h('p', { class: 'msgline', role: 'status' });
-  const shareBox = o.share ? h('div', { class: 'share paper' }, h('p', { class: 'kicker' }, 'Your share card. No answers in it.'), h('pre', null, o.share),
+  const shareBox = o.share ? h('div', { class: 'share panel' }, h('p', { class: 'kicker' }, 'Share card · no answers in it'), h('pre', null, o.share),
     h('button', { class: 'btn primary', type: 'button', 'data-autofocus': true, onclick: () => copyShare(o.share, shareBox, status) }, 'Copy result'), status) : null;
   return h('div', { class: 'wrap sum' },
-    h('a', { class: 'btn small', href: o.back || '#home' }, h('span', { html: IC.back, 'aria-hidden': 'true', style: 'display:inline-flex' }), o.backLabel || 'Home'),
+    h('a', { class: 'btn small', href: o.back || '#home' }, '← ' + (o.backLabel || 'Home')),
     h('p', { class: 'kicker', style: 'margin-top:22px' }, o.kicker),
     h('h1', { class: 'sr' }, 'Your result'),
     big,
@@ -1125,12 +1119,12 @@ function resultsView(o) {
     shareBox, o.after || null,
     o.items && o.items.length ? [h('h2', { class: 'sect' }, o.listTitle || 'The words'), h('ol', { class: 'terms' }, o.items.map(it => {
       const p = byId(it.id), r = it.r;
-      if (!r) return h('li', null, h('h3', null, p.term), h('p', { class: 'd' }, p.definition), h('p', null, it.note));
+      if (!r) return h('li', { class: 'panel' }, h('h3', null, p.term), h('p', null, p.definition), h('p', null, it.note));
       const z = zoneIndexFor(r.best);
-      return h('li', null,
-        h('h3', null, p.term, h('span', { class: 'zc z' + z }, CONFIG.ZONES[z].name), r.slanger ? h('span', { class: 'chip' }, 'One in a slanger') : null),
-        h('p', { class: 'd' }, p.definition),
-        h('p', { class: 'num' }, [fmtM(r.final), r.g.length + (r.g.length === 1 ? ' guess' : ' guesses'), r.h.length ? r.h.length + ' hint' + (r.h.length > 1 ? 's' : '') : '', r.ac ? 'autocorrected' : '', r.out === 'time' ? 'out of oxygen' : r.out === 'air' ? 'out of guesses' : r.out === 'skip' ? 'skipped' : ''].filter(Boolean).join(', ')));
+      return h('li', { class: 'panel' },
+        h('h3', null, p.term, h('span', { class: 'zc z' + z }, CONFIG.ZONES[z].name), r.slanger ? h('span', { class: 'chip' }, 'One in a Slanger') : null),
+        h('p', null, p.definition),
+        h('p', { class: 'num' }, fmtM(r.final) + ' · ' + r.g.length + (r.g.length === 1 ? ' guess' : ' guesses') + (r.h.length ? ' · ' + r.h.length + ' hint' + (r.h.length > 1 ? 's' : '') : '') + (r.ac ? ' · autocorrected' : '') + (r.out === 'time' ? ' · out of oxygen' : r.out === 'air' ? ' · out of guesses' : r.out === 'skip' ? ' · skipped' : '')));
     }))] : null,
     storageOK ? null : h('p', { class: 'store' }, 'Storage is off in this browser, so this result will be gone after a reload.'));
 }
@@ -1139,9 +1133,9 @@ function showResults(o) {
   document.title = o.kicker + ' · Slanger';
   $('#view').replaceChildren(resultsView(o));
   window.scrollTo(0, 0); focusFirst();
-  if (o.newBest && o.total > 0) setTimeout(() => wordBurst('new best', 6, 'exact', fmtM(o.total)), 300);
+  if (o.newBest && o.total > 0) setTimeout(() => wordBurst('New best', 6, 'exact', fmtM(o.total)), 300);
 }
-function stat(b, s) { return h('div', { class: 'stat' }, h('b', { class: 'num' }, b), h('span', null, s)); }
+function stat(b, s) { return h('div', { class: 'stat panel' }, h('b', { class: 'num' }, b), h('span', null, s)); }
 function copyShare(text, box, status) {
   const fallback = () => {
     let ta = box.querySelector('textarea');
@@ -1166,26 +1160,27 @@ function viewStats() {
   const avg = st.played ? fmtM(st.totalDepth / st.played) : '—';
   const packBest = CONFIG.PACKS.filter(pk => M.packs.best[pk.key]).map(pk => pk.name + ' ' + fmtM(M.packs.best[pk.key]));
   return h('div', { class: 'wrap page' },
+    h('p', { class: 'kicker' }, 'Stats'),
     h('h1', { tabindex: '-1', 'data-autofocus': true }, 'Your logbook'),
     h('p', { class: 'intro' }, st.played ? 'Daily and archive dives count towards these. A dive is a win when you find at least four of the seven words.' : 'No dives finished yet. Finish a daily dive and this fills up.'),
     h('div', { class: 'stats' },
       stat(String(st.played), 'dives played'), stat(rate, 'win rate'), stat(String(liveStreak()), 'current streak'), stat(String(S.streak.max), 'best streak'),
       stat(avg, 'average depth per dive'), stat(String(st.slangers), 'first-guess Slangers'), stat(String(st.words), 'words dived, all modes'), stat(M.endless.best ? fmtM(M.endless.best) : '—', 'best Endless run')),
-    h('section', { class: 'block' },
+    h('section', { class: 'block panel' },
       h('h2', null, 'Where your words land'),
       h('p', null, total ? 'The deepest zone you reached on each of ' + total + ' words, across every mode with guessing.' : 'Your zones will show here once you’ve dived a word.'),
       h('div', { class: 'hist', role: 'table', 'aria-label': 'Words by deepest zone' },
         CONFIG.ZONES.slice().reverse().map((z, k) => {
           const zi = 6 - k, n = st.hist[zi], pct = total ? Math.round(n / total * 100) : 0;
           return h('div', { class: 'row z' + zi, role: 'row', title: z.name + ': ' + n + ' words (' + pct + '%)' },
-            h('b', { role: 'rowheader' }, z.name), h('div', { class: 'trk', role: 'cell' }, h('i', { style: 'width:' + (n / max * 100) + '%' })), h('span', { class: 'num', role: 'cell' }, n + ' (' + pct + '%)'));
+            h('b', { role: 'rowheader' }, z.name), h('div', { class: 'trk', role: 'cell' }, h('i', { style: 'width:' + (n / max * 100) + '%' })), h('span', { class: 'num', role: 'cell' }, n + ' · ' + pct + '%'));
         }))),
-    h('section', { class: 'block' },
+    h('section', { class: 'block panel' },
       h('h2', null, 'Mode bests'),
       h('div', { class: 'stats', style: 'margin:0' },
         stat(M.speed.best ? fmtM(M.speed.best) : '—', 'Speed Trench'), stat(M.reverse.best ? fmtM(M.reverse.best) : '—', 'Reverse Dive'),
         stat(String(M.party.played), 'parties played'), stat(String(M.endless.played), 'Endless runs')),
-      packBest.length ? h('p', { style: 'margin-top:12px' }, 'Pack bests: ' + packBest.join(', ') + '.') : null));
+      packBest.length ? h('p', { style: 'margin-top:12px' }, 'Pack bests: ' + packBest.join(' · ')) : null));
 }
 
 /* ---------- How to play ---------- */
@@ -1194,35 +1189,35 @@ function viewHow() {
   setSeaDepth(0.55);
   return h('div', { class: 'wrap page' },
     h('h1', { 'data-autofocus': true, tabindex: '-1' }, 'How to play'),
-    h('p', { class: 'intro' }, 'Every puzzle is a slang definition. You get six guesses and a minute of oxygen to name the word. Each guess sinks you as deep as it deserves, and you never float back up.'),
-    h('ol', { class: 'steps' },
-      step('Read', 'A definition and an example sentence, with the word left blank.'),
-      step('Guess', 'Type a word and press Dive. Close in meaning sinks you deep. Way off barely gets your feet wet.'),
-      step('Breathe', 'A minute of oxygen per word. Run out and the word surfaces without you. Oxygen you save adds depth.')),
-    h('section', { class: 'block' }, h('h2', null, 'The zones'),
+    h('p', { class: 'intro' }, 'Every puzzle is a slang definition. You get six guesses and sixty seconds of oxygen to name the word. Each guess sinks you as deep as it deserves, and you never float back up.'),
+    h('div', { class: 'steps' },
+      step(IC.read, 'Read', 'A definition and an example sentence, with the word blacked out.'),
+      step(IC.dive, 'Guess', 'Type a word and press Dive. Close in meaning sinks you deep. Way off barely gets your feet wet.'),
+      step(IC.clock, 'Breathe', 'Sixty seconds of oxygen per word. Run out and the word surfaces without you. Solve it fast and the oxygen you saved adds depth.')),
+    h('section', { class: 'block panel' }, h('h2', null, 'The zones'),
       h('p', null, 'Depth is scored 0 to 100 and shown in metres. Zones are always named, never just coloured.'),
-      h('ol', { class: 'ladder' }, CONFIG.ZONES.map((z, k) => h('li', { class: 'z' + k }, h('span', { class: 'sw' }), h('b', null, z.name), h('span', { class: 'num' }, k === 6 ? fmtM(z.d1) + ', exact' : fmtM(z.d0) + '–' + fmtM(z.d1)))))),
-    h('section', { class: 'block' }, h('h2', null, 'What counts as close'),
+      h('ol', { class: 'ladder' }, CONFIG.ZONES.map((z, k) => h('li', { class: 'z' + k }, h('span', { class: 'sw' }), h('b', null, z.name), h('span', { class: 'num' }, k === 6 ? fmtM(z.d1) + ' · exact' : fmtM(z.d0) + '–' + fmtM(z.d1)))))),
+    h('section', { class: 'block panel' }, h('h2', null, 'What counts as close'),
       h('div', { class: 'tiers' },
         tierBox('Exact', 'The word itself, any accepted spelling. Straight to the Slanger.'),
         tierBox('Same meaning', 'Real synonyms, other slang for the same thing. Lingo and Vernacular.'),
         tierBox('Right neighbourhood', 'Same feeling or category. Jargon.'),
         tierBox('Right world', 'Right topic, wrong meaning. Buzzword.')),
       h('p', null, 'Anything else gets a best guess from the game’s own slang dictionary, capped well short of the bottom.')),
-    h('section', { class: 'block' }, h('h2', null, 'The autocorrect is not your friend'),
+    h('section', { class: 'block panel' }, h('h2', null, 'The autocorrect is not your friend'),
       h('p', null, 'Misspell the answer by a letter and Slanger will fix it for you, grudgingly. It counts as solved, but lands at Lingo, never the Slanger, and earns no bonuses.'),
       h('ul', null, h('li', null, 'Only for words of five letters or more, and only if the first letter is right.'), h('li', null, 'One slip allowed, two for long words. Real words are never “corrected”.'), h('li', null, 'Short words get no help at all. Spell “lit” properly.'))),
-    h('section', { class: 'block' }, h('h2', null, 'Hints and scoring'),
+    h('section', { class: 'block panel' }, h('h2', null, 'Hints and scoring'),
       h('ul', null, CONFIG.HINTS.map(x => h('li', null, x.label + ' costs ' + fmtM(x.cost) + ' off that puzzle’s score.')),
         h('li', null, 'Take any hint and that puzzle can’t score more than ' + fmtM(CONFIG.HINT_CAP) + '.'),
         h('li', null, 'Solve with guesses to spare: each one adds ' + fmtM(CONFIG.BONUS_PER_SPARE_GUESS) + '.'),
         h('li', null, 'Every second of oxygen left adds ' + fmtM(CONFIG.TIME_BONUS_PER_SEC) + '.'),
         h('li', null, 'Exact on the very first guess, no hints: that’s one in a slanger.'))),
-    h('section', { class: 'block' }, h('h2', null, 'The other modes'),
+    h('section', { class: 'block panel' }, h('h2', null, 'The other modes'),
       h('ul', null, MODE_CARDS.slice(1, 7).map(m => h('li', null, h('b', null, m.t + ': '), m.d)))),
-    h('p', { style: 'margin-top:40px' }, h('a', { class: 'btn primary', href: '#daily' }, 'Start today’s dive')));
+    h('p', { style: 'margin-top:20px' }, h('a', { class: 'btn primary', href: '#daily' }, 'Go dive')));
 }
-function step(t, d) { return h('li', null, h('h3', null, t), h('p', null, d)); }
+function step(ic, t, d) { return h('div', { class: 'panel' }, h('div', { html: ic, 'aria-hidden': 'true' }), h('h3', null, t), h('p', null, d)); }
 function tierBox(t, d) { return h('div', null, h('b', null, t), h('span', null, d)); }
 
 /* ---------- Options ---------- */
@@ -1237,16 +1232,16 @@ function viewOptions() {
   };
   return h('div', { class: 'wrap page' },
     h('h1', { 'data-autofocus': true, tabindex: '-1' }, 'Options'),
-    h('section', { class: 'block', style: 'margin-top:32px' },
+    h('section', { class: 'block panel' },
       opt('filter', 'Hide crude puzzles', 'Skips puzzles flagged as mildly crude. On by default.' + (todayRun ? ' Changes apply from your next daily dive.' : '')),
       opt('sound', 'Sound', 'Bells for close guesses and the big ding when you nail it. On by default.'),
       opt('reducedMotion', 'Reduce motion', 'Stops the moving sea, bursts, flips and flashes. Your system setting is respected either way.'),
       opt('highContrast', 'High contrast', 'Solid black panels and white text over a darkened sea.')),
-    h('section', { class: 'block' },
+    h('section', { class: 'block panel' },
       h('h2', null, 'Your data'),
       h('p', null, storageOK ? 'Progress is saved in this browser only. Nothing leaves your device.' : 'Storage is unavailable in this browser, so the game still plays but forgets everything when you leave.'),
       h('button', { class: 'btn danger', type: 'button', onclick: confirmReset }, 'Reset all data')),
-    h('p', { class: 'store' }, 'Slanger, build 3. ' + PUZZLES.length + ' words, with definitions written for this game. Set in Cardo and Fira Sans.'));
+    h('p', { class: 'store' }, 'Slanger · build 2 · ' + PUZZLES.length + ' words · definitions written for this game, not copied from anywhere.'));
 }
 function confirmReset() {
   openModal('Reset everything?', 'Your streak, stats, settings, mode bests and any dive in progress will be wiped from this browser. This can’t be undone.', [
@@ -1300,8 +1295,19 @@ function applySettings() {
   if (FX.c) { if (motionOK()) ensureLoop(); else frameStatic(); }
 }
 const IC = {
-  back: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 5.5L8 12l6.5 6.5"/></svg>',
-  caret: '<svg viewBox="0 0 12 12" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4.5L6 8l3.5-3.5"/></svg>'
+  back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>',
+  down: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v15M6 12l6 6 6-6"/><path d="M5 21h14"/></svg>',
+  dive: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6c2 1.5 4 1.5 6 0s4-1.5 6 0 4 1.5 6 0"/><circle cx="12" cy="13" r="2.2"/><path d="M12 15.2V21M9 18l3 3 3-3"/></svg>',
+  how: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.6 2.6 0 1 1 3.4 2.5c-.6.2-.9.8-.9 1.4V14"/><circle cx="12" cy="17.3" r=".6" fill="currentColor"/></svg>',
+  opts: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>',
+  read: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 5h16v14H4z"/><path d="M7 9h10M7 13h4"/><rect x="12" y="11.5" width="5" height="3" rx="1" fill="currentColor"/></svg>',
+  loop: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6.5 9a3.5 3.5 0 1 0 0 6c2.5 0 3.5-3 5.5-3s3 3 5.5 3a3.5 3.5 0 1 0 0-6c-2.5 0-3.5 3-5.5 3S9 9 6.5 9z"/></svg>',
+  clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="13" r="8"/><path d="M12 13l3-3M10 2h4"/></svg>',
+  swap: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4L3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7"/></svg>',
+  party: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="8" cy="9" r="3"/><circle cx="16" cy="9" r="3"/><path d="M2 20c0-3 3-5 6-5s6 2 6 5M14 15c3 0 8 1 8 5"/></svg>',
+  grid: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>',
+  cal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>',
+  bars: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 20V12M12 20V5M19 20v-9"/></svg>'
 };
 
 /* =====================================================================
@@ -1309,15 +1315,15 @@ const IC = {
    Everything checks motionOK(); reduced motion draws one still frame.
    ===================================================================== */
 const SVG = {
-  diver: '<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M1 1.5L13 7 1 12.5z" fill="#ff5a1f"/></svg>',
+  diver: '<svg viewBox="0 0 48 48" role="img" aria-label="Diver"><path d="M10 22 L2 17 L4 24.5 L2 32 L10 27Z" fill="#3ff5e0"/><path d="M10 22 Q22 16 34 20 L35 26 Q22 30 10 27Z" fill="#f2fbff"/><rect x="14" y="13" width="14" height="6" rx="3" fill="#ffcf3d"/><circle cx="39" cy="22.5" r="5.5" fill="#f2fbff"/><rect x="39.5" y="19" width="6" height="5" rx="1.5" fill="#0a72aa"/><path d="M30 24 L41 31" stroke="#f2fbff" stroke-width="2.6" stroke-linecap="round"/><circle cx="44" cy="12" r="1.8" fill="none" stroke="#f2fbff" stroke-width="1"/><circle cx="46" cy="6" r="1.2" fill="none" stroke="#f2fbff" stroke-width="1"/></svg>',
   fish: '<svg viewBox="0 0 80 40"><g fill="#ffcf3d"><path d="M10 10 Q18 4 26 10 Q18 16 10 10Z M10 10 L4 5 L5 10 L4 15Z"/><path d="M36 20 Q44 14 52 20 Q44 26 36 20Z M36 20 L30 15 L31 20 L30 25Z"/><path d="M14 30 Q22 24 30 30 Q22 36 14 30Z M14 30 L8 25 L9 30 L8 35Z"/><path d="M56 10 Q64 4 72 10 Q64 16 56 10Z M56 10 L50 5 L51 10 L50 15Z"/><path d="M52 31 Q60 25 68 31 Q60 37 52 31Z M52 31 L46 26 L47 31 L46 36Z"/></g></svg>',
   jelly: '<svg viewBox="0 0 40 52"><path d="M4 20 Q4 3 20 3 Q36 3 36 20 Q30 17 26 20 Q20 17 14 20 Q10 17 4 20Z" fill="#ff7a3d" opacity=".9"/><g fill="none" stroke="#ffc59a" stroke-width="1.6" stroke-linecap="round"><path d="M9 20 q-3 8 0 15 q3 8 0 15"/><path d="M16 20 q3 8 0 15 q-3 7 0 13"/><path d="M24 20 q-3 8 0 15 q3 7 0 13"/><path d="M31 20 q3 8 0 15 q-3 8 0 15"/></g><circle cx="15" cy="11" r="2.5" fill="#fff" opacity=".5"/></svg>',
   angler: '<svg viewBox="0 -8 66 52"><circle cx="54" cy="-1" r="7" fill="#fff7a8" opacity=".25"/><path d="M36 8 Q40 -4 54 -1" fill="none" stroke="#3ee07a" stroke-width="1.6"/><circle cx="54" cy="-1" r="3" fill="#fff7a8"/><path d="M8 24 L0 14 L2 24 L0 34Z" fill="#2e8a4a"/><path d="M8 24 Q10 8 32 8 Q52 8 58 22 Q52 38 32 38 Q12 38 8 24Z" fill="#3ee07a"/><path d="M44 25 L58 25 L56 33 Q48 34 44 30Z" fill="#06240f"/><path d="M45 25 L47 29 L49 25 L51 29 L53 25 L55 29 L57 25" fill="none" stroke="#fff" stroke-width="1.2"/><circle cx="45" cy="16" r="3.2" fill="#06240f"/><circle cx="46" cy="15" r="1" fill="#fff"/></svg>',
   squid: '<svg viewBox="0 0 76 34"><path d="M76 17 L66 9 L66 25Z" fill="#1a7fc6"/><path d="M70 17 L48 6 Q22 6 20 17 Q22 28 48 28Z" fill="#2fb4ff"/><circle cx="26" cy="14" r="2.4" fill="#05223a"/><g fill="none" stroke="#9adfff" stroke-width="1.8" stroke-linecap="round"><path d="M20 13 Q10 8 1 10"/><path d="M20 16 Q10 15 2 18"/><path d="M20 19 Q10 21 3 26"/><path d="M20 21 Q12 27 6 32"/></g></svg>',
   snail: '<svg viewBox="0 0 60 30"><path d="M52 15 Q52 5 40 5 Q26 6 15 13 Q7 16 0 15 Q7 18 15 19 Q26 25 40 25 Q52 25 52 15Z" fill="#d7a8ff" opacity=".9"/><circle cx="45" cy="12" r="2.2" fill="#2a0f3d"/><path d="M28 9 Q30 15 28 21" fill="none" stroke="#fff" stroke-width="1" opacity=".5"/></svg>',
-  letters: '<svg viewBox="0 0 100 56"><g fill="#eef1ff" font-family="Cardo,Georgia,serif" font-style="italic"><text x="4" y="22" font-size="16">s</text><text x="20" y="40" font-size="13">l</text><text x="30" y="18" font-size="18">a</text><text x="48" y="44" font-size="15">n</text><text x="58" y="20" font-size="17">g</text><text x="74" y="38" font-size="14">e</text><text x="86" y="16" font-size="16">r</text></g><g fill="#d8fffb"><circle cx="14" cy="46" r="1.4"/><circle cx="40" cy="30" r="1"/><circle cx="68" cy="50" r="1.3"/><circle cx="92" cy="30" r="1"/><circle cx="54" cy="6" r="1.1"/></g></svg>'
+  letters: '<svg viewBox="0 0 100 56"><g fill="#3ff5e0" font-family="ui-rounded,system-ui,sans-serif" font-weight="900"><text x="4" y="22" font-size="16">s</text><text x="20" y="40" font-size="13">l</text><text x="30" y="18" font-size="18">a</text><text x="48" y="44" font-size="15">n</text><text x="58" y="20" font-size="17">g</text><text x="74" y="38" font-size="14">e</text><text x="86" y="16" font-size="16">r</text></g><g fill="#d8fffb"><circle cx="14" cy="46" r="1.4"/><circle cx="40" cy="30" r="1"/><circle cx="68" cy="50" r="1.3"/><circle cx="92" cy="30" r="1"/><circle cx="54" cy="6" r="1.1"/></g></svg>'
 };
-const ZONE_HEX = ['#dfe3ff', '#ffe14d', '#ffa53a', '#35e8a0', '#49d0ff', '#c99bff', '#ff5a1f'];
+const ZONE_HEX = ['#c6f4ff', '#ffcf3d', '#ff7a3d', '#3ee07a', '#2fb4ff', '#a46bff', '#3ff5e0'];
 const ZONE_CREATURE = [null, 'fish', 'jelly', 'angler', 'squid', 'snail', 'letters'];
 function zoneColor(zi) { return ZONE_HEX[zi] || '#fff'; }
 function motionOK() {
@@ -1379,7 +1385,7 @@ function draw(dt) {
     for (let i = 0; i < 6; i++) {
       const x0 = W * (0.05 + i * 0.18) + Math.sin(t * 0.25 + i * 1.7) * 50, spread = 90 + i * 25 + Math.sin(t * 0.4 + i) * 40;
       const g = c.createLinearGradient(0, 0, 0, H * 0.95);
-      g.addColorStop(0, 'rgba(200,215,255,' + (ra * (0.6 + 0.4 * Math.sin(t * 0.6 + i * 2))).toFixed(3) + ')'); g.addColorStop(1, 'rgba(200,215,255,0)');
+      g.addColorStop(0, 'rgba(190,255,250,' + (ra * (0.6 + 0.4 * Math.sin(t * 0.6 + i * 2))).toFixed(3) + ')'); g.addColorStop(1, 'rgba(190,255,250,0)');
       c.fillStyle = g; c.beginPath(); c.moveTo(x0 - 14, -10); c.lineTo(x0 + 26, -10); c.lineTo(x0 + spread + 60, H * 0.95); c.lineTo(x0 + spread - 30, H * 0.95); c.closePath(); c.fill();
     }
   }
@@ -1392,7 +1398,7 @@ function draw(dt) {
     p.y += vy * dt; p.x += Math.sin(t * 0.5 + p.y * 0.01) * 3 * dt * p.L;
     if (p.y < -30) { p.y = H + 20; p.x = Math.random() * W; } else if (p.y > H + 30) { p.y = -20; p.x = Math.random() * W; }
     const len = Math.min(70, Math.abs(vy) * 0.06);
-    c.strokeStyle = c.fillStyle = 'rgba(225,232,255,' + (p.a * (0.45 + f * 0.55)).toFixed(3) + ')';
+    c.strokeStyle = c.fillStyle = 'rgba(215,240,255,' + (p.a * (0.5 + f * 0.6)).toFixed(3) + ')';
     if (len > 2) { c.lineWidth = p.r; c.beginPath(); c.moveTo(p.x, p.y); c.lineTo(p.x, p.y + (vy < 0 ? len : -len)); c.stroke(); }
     else { c.beginPath(); c.arc(p.x, p.y, p.r, 0, 6.283); c.fill(); }
   }
@@ -1402,10 +1408,10 @@ function draw(dt) {
     b.y -= (b.spd + Math.max(0, rush) * 0.35) * dt;
     const x = b.x + Math.sin(t * 2 + b.ph) * b.amp;
     if (b.y < -30) FX.bubs[i] = newBubble(false, b.L);
-    c.lineWidth = b.r > 6 ? 1 : 0.8; c.strokeStyle = 'rgba(238,241,255,' + (b.L ? 0.3 : 0.34) + ')';
-    c.beginPath(); c.arc(x, b.y, b.r, 0, 6.283); c.stroke();
-    c.fillStyle = 'rgba(255,255,255,.55)'; c.beginPath(); c.arc(x - b.r * 0.38, b.y - b.r * 0.4, Math.max(0.6, b.r * 0.14), 0, 6.283); c.fill();
-    if (b.L) { c.fillStyle = 'rgba(238,241,255,.4)'; c.font = 'italic 400 ' + Math.round(b.r * 1.25) + 'px Cardo,Georgia,serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(b.L, x, b.y); }
+    const g = c.createRadialGradient(x - b.r * 0.35, b.y - b.r * 0.4, b.r * 0.1, x, b.y, b.r);
+    g.addColorStop(0, 'rgba(255,255,255,.75)'); g.addColorStop(0.45, 'rgba(190,245,255,.12)'); g.addColorStop(0.9, 'rgba(190,245,255,.22)'); g.addColorStop(1, 'rgba(230,252,255,.6)');
+    c.fillStyle = g; c.beginPath(); c.arc(x, b.y, b.r, 0, 6.283); c.fill();
+    if (b.L) { c.fillStyle = 'rgba(235,253,255,.85)'; c.font = '900 ' + Math.round(b.r * 1.1) + 'px ui-rounded,system-ui,sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(b.L, x, b.y + 1); }
   }
   // burst particles
   if (FX.parts.length) {
@@ -1416,8 +1422,8 @@ function draw(dt) {
       p.vx *= 1 - 1.6 * dt; p.vy = p.vy * (1 - 1.6 * dt) - 40 * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.rot += p.vr * dt;
       const a = Math.min(1, p.life / p.max * 1.4);
       c.globalAlpha = a; c.fillStyle = p.col;
-      if (p.g) { c.save(); c.translate(p.x, p.y); c.rotate(p.rot); c.font = 'italic 400 ' + p.s + 'px Cardo,Georgia,serif'; c.fillText(p.g, 0, 0); c.restore(); }
-      else { c.beginPath(); c.arc(p.x, p.y, Math.max(0.8, p.s * 0.07), 0, 6.283); c.fill(); }
+      if (p.g) { c.save(); c.translate(p.x, p.y); c.rotate(p.rot); c.font = '900 ' + p.s + 'px ui-rounded,system-ui,sans-serif'; c.fillText(p.g, 0, 0); c.restore(); }
+      else { c.beginPath(); c.arc(p.x, p.y, p.s * 0.18, 0, 6.283); c.fill(); }
     }
     c.globalAlpha = 1; c.globalCompositeOperation = 'source-over';
   }
@@ -1425,34 +1431,35 @@ function draw(dt) {
 FX.burst = (x, y, col, n, glyphs) => {
   if (!FX.c || !motionOK()) return;
   for (let i = 0; i < n; i++) {
-    const a = Math.random() * 6.283, sp = 90 + Math.random() * 380;
-    FX.parts.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp * 0.75, life: 1.1 + Math.random() * 1.3, max: 2.4, col: Math.random() < 0.4 ? '#eef1ff' : col,
-      g: glyphs && Math.random() < 0.55 ? glyphs[Math.floor(Math.random() * glyphs.length)] : null, s: 14 + Math.random() * 26, rot: (Math.random() - 0.5) * 0.8, vr: (Math.random() - 0.5) * 1.5 });
+    const a = Math.random() * 6.283, sp = 140 + Math.random() * 520;
+    FX.parts.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp * 0.8, life: 0.9 + Math.random() * 1.1, max: 2, col: Math.random() < 0.25 ? '#ffffff' : col,
+      g: glyphs && Math.random() < 0.6 ? glyphs[Math.floor(Math.random() * glyphs.length)] : null, s: 12 + Math.random() * 22, rot: Math.random() * 6, vr: (Math.random() - 0.5) * 8 });
   }
   ensureLoop();
 };
-/* the big moment: a sonar ping, then the word writes itself in italic */
+/* the big moment: letters spring in, rings blast out, sea sparks */
 function wordBurst(text, zi, level, kick) {
   const host = $('#burst');
   host.replaceChildren();
-  const hold = level === 'slanger' ? 2.2 : level === 'exact' ? 1.55 : 1.05;
+  const hold = level === 'slanger' ? 2.1 : level === 'exact' ? 1.45 : 1.0;
   const wrap = h('div', { class: 'wb ' + level + ' z' + zi, style: '--hold:' + hold + 's' });
   const word = h('div', { class: 'word' });
   let i = 0;
   String(text).split(/\s+/).forEach(w => { const ws = h('span', { class: 'w' }); [...w].forEach(ch => ws.append(h('span', { class: 'l', style: '--i:' + (i++) }, ch))); word.append(ws, ' '); });
-  const kt = kick || (level === 'slanger' ? 'one in a slanger' : level === 'exact' ? 'Bang on. Straight to the bottom.' : CONFIG.ZONES[zi].name + '. So close.');
-  wrap.append(word, h('div', { class: 'rule' }), h('div', { class: 'kick' }, kt));
+  const kt = kick || (level === 'slanger' ? 'ONE IN A SLANGER' : level === 'exact' ? 'BANG ON · SLANGER' : CONFIG.ZONES[zi].name.toUpperCase() + ' · SO CLOSE');
+  wrap.append(word, h('div', { class: 'kick' }, kt));
   host.append(h('div', { class: 'scrim ' + level, style: 'animation-duration:' + (hold + 0.6) + 's' }));
-  const rings = level === 'close' ? 2 : level === 'exact' ? 4 : 6;
-  for (let k = 0; k < rings; k++) host.append(h('span', { class: 'ring z' + zi, style: '--d:' + (k * 0.22) + 's' }));
+  const rings = level === 'close' ? 1 : level === 'exact' ? 3 : 5;
+  for (let k = 0; k < rings; k++) host.append(h('span', { class: 'ring z' + zi, style: '--d:' + (k * 0.16) + 's' }));
   host.append(wrap);
   fitText(word);
   if (motionOK()) {
     const glyphs = [...String(text).replace(/\s/g, '')];
-    FX.burst(innerWidth / 2, innerHeight / 2, zoneColor(zi), level === 'close' ? 22 : level === 'exact' ? 56 : 96, glyphs);
+    FX.burst(innerWidth / 2, innerHeight / 2, zoneColor(zi), level === 'close' ? 50 : level === 'exact' ? 130 : 220, glyphs);
     if (level !== 'close') {
+      const app = $('#app'); app.classList.remove('shake'); void app.offsetWidth; app.classList.add('shake'); setTimeout(() => app.classList.remove('shake'), 600);
       const fl = $('#flash'); fl.classList.remove('on'); void fl.offsetWidth; fl.classList.add('on');
-      if (level === 'slanger') { drift(6); setTimeout(() => drift(6), 700); setTimeout(() => FX.burst(innerWidth / 2, innerHeight / 2, '#ffffff', 60, glyphs), 500); }
+      if (level === 'slanger') { drift(6); setTimeout(() => drift(6), 600); setTimeout(() => FX.burst(innerWidth / 2, innerHeight / 2, '#ffffff', 120, glyphs), 450); }
     }
   }
   clearTimeout(wordBurst._t);
@@ -1461,7 +1468,7 @@ function wordBurst(text, zi, level, kick) {
 function drift(zi) {
   const kind = ZONE_CREATURE[zi];
   if (!kind || !motionOK()) return;
-  const el = h('div', { style: 'position:absolute;left:0;top:' + (16 + Math.random() * 60).toFixed(0) + '%;width:' + (kind === 'letters' ? 190 : 130) + 'px;filter:brightness(0) invert(1);opacity:.22;pointer-events:none', html: SVG[kind] });
+  const el = h('div', { style: 'position:absolute;left:0;top:' + (16 + Math.random() * 60).toFixed(0) + '%;width:' + (kind === 'letters' ? 190 : 140) + 'px;filter:drop-shadow(0 0 8px rgba(63,245,224,.4));pointer-events:none', html: SVG[kind] });
   $('#sea').insertBefore(el, $('#sea .vignette'));
   const anim = el.animate([{ transform: 'translateX(-200px)' }, { transform: 'translateX(' + (innerWidth + 60) + 'px)' }], { duration: 8000 + Math.random() * 3000, easing: 'linear' });
   anim.onfinish = () => el.remove();
@@ -1530,6 +1537,24 @@ function sound(kind, arg) {
     else if (kind === 'wrong') { bell(A, 233, t, 0.26, 0.7); bell(A, 220, t + 0.12, 0.22, 0.8); }
     else if (kind === 'surface') { whoosh(A, t, 0.2, 300, 2600, 0.9); [784, 988, 1175, 1568].forEach((f, i) => bell(A, f, t + 0.2 + i * 0.1, 0.22, 2)); }
   } catch (e) { /* no audio, no problem */ }
+}
+function heroSVG() {
+  let bands = '';
+  CONFIG.ZONES.slice(0, 6).forEach((z, k) => {
+    const y = 18 + k * 32;
+    bands += '<line x1="16" x2="344" y1="' + y + '" y2="' + y + '" stroke="' + ZONE_HEX[k] + '" stroke-opacity=".5" stroke-dasharray="3 5"/>' +
+      '<text x="340" y="' + (y + 16) + '" text-anchor="end" font-size="12.5" font-weight="900" fill="' + ZONE_HEX[k] + '">' + z.name + '</text>';
+  });
+  const strip = (s, w, hgt) => s.replace(/^<svg viewBox="([^"]+)"[^>]*>/, '<svg width="' + w + '" height="' + hgt + '" viewBox="$1">');
+  return '<svg viewBox="0 0 360 260"><defs><linearGradient id="hg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#38d6e6"/><stop offset=".22" stop-color="#0a72aa"/><stop offset=".55" stop-color="#0a2468"/><stop offset=".8" stop-color="#08093a"/><stop offset="1" stop-color="#010008"/></linearGradient><radialGradient id="hglow" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#3ff5e0" stop-opacity=".7"/><stop offset="1" stop-color="#3ff5e0" stop-opacity="0"/></radialGradient><linearGradient id="ray" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d2fffb" stop-opacity=".35"/><stop offset="1" stop-color="#d2fffb" stop-opacity="0"/></linearGradient></defs>' +
+    '<rect width="360" height="260" fill="url(#hg)"/><path d="M40 0 L70 0 L150 200 L100 200Z M140 0 L160 0 L230 180 L200 180Z M230 0 L262 0 L330 170 L290 170Z" fill="url(#ray)"/>' +
+    '<g font-family="system-ui,sans-serif">' + bands + '</g>' +
+    '<ellipse cx="160" cy="240" rx="150" ry="40" fill="url(#hglow)"/>' +
+    '<g transform="translate(84 200)">' + strip(SVG.letters, 150, 60) + '</g>' +
+    '<g class="bob"><g transform="translate(112 66) rotate(58 32 32)">' + strip(SVG.diver, 72, 72) + '</g></g>' +
+    '<g class="pulse"><g transform="translate(232 98)">' + strip(SVG.jelly, 38, 50) + '</g></g>' +
+    '<g fill="none" stroke="#f2fbff" stroke-opacity=".75"><circle cx="184" cy="56" r="4"/><circle cx="192" cy="40" r="3"/><circle cx="186" cy="24" r="5.5"/><circle cx="60" cy="122" r="7"/><circle cx="286" cy="186" r="6"/></g>' +
+    '<g font-family="ui-rounded,system-ui,sans-serif" font-weight="900" fill="#f2fbff" fill-opacity=".85" font-size="10" text-anchor="middle"><text x="186" y="27.5">w</text><text x="60" y="125.5">a</text><text x="286" y="189.5">z</text></g></svg>';
 }
 
 /* =====================================================================

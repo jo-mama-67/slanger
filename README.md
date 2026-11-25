@@ -12,12 +12,11 @@ Play it: https://slanger-game.netlify.app
   - `config.js` — zones, timers, hints, packs, share link
   - `data.js` — the puzzle pack and the slang lexicon (swap the `PUZZLES` array to change the words)
   - `app.js` — scoring, autocorrect, storage, every mode, animation and sound
-  - `fonts/` — Cardo and Fira Sans subsets (SIL Open Font License, licences alongside). The build inlines them, so the page still makes no requests.
   - `build.js` — run `node src/build.js` to rebuild `public/index.html`
 
 ## Deploying
 
-Netlify publishes the `public/` folder (see `netlify.toml`). Auto-publishing is off: each push to `main` builds a preview deploy, and it only goes live when it's published from the Netlify Deploys page.
+Netlify publishes the `public/` folder (see `netlify.toml`). Push to `main` and the site updates.
 
 ## Checks
 
