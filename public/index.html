@@ -1,0 +1,2269 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="description" content="Slanger: read a slang definition, guess the word, sink as deep as your guess deserves. One in a slanger.">
+<title>Slanger</title>
+<style>
+/*
+VOICE   sardonic, late-night, pleased with itself
+IDEA    a dive log: the screen is the water column, every guess is a depth reading
+PICTURE a live sea — light shafts, marine snow, bubbles — darkening as you sink towards a glowing swarm of letters
+COLOUR  saturated cyan surface to ink-black trench; bioluminescent cyan accent, coral for danger; six zone colours shared with the share card
+TYPE    system rounded heavy for words and depths, system sans for reading, tabular numbers
+*/
+:root{
+  color-scheme:dark;
+  --ink:#f2fbff; --mute:#b9d3e6; --line:rgba(150,220,255,.2);
+  --panel:linear-gradient(180deg,rgba(14,34,72,.84),rgba(3,10,30,.9));
+  --solid:rgba(4,12,32,.9);
+  --acc:#3ff5e0; --accInk:#00211d; --hot:#ff4d6d; --warm:#ffb03d;
+  --z0:#c6f4ff; --z1:#ffcf3d; --z2:#ff7a3d; --z3:#3ee07a; --z4:#2fb4ff; --z5:#a46bff; --z6:#3ff5e0;
+  --disp:ui-rounded,"SF Pro Rounded","Arial Rounded MT Bold",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --navH:66px; --barH:60px;
+  --spring:cubic-bezier(.34,1.56,.64,1);
+}
+*{box-sizing:border-box;min-width:0}
+[hidden]{display:none!important}
+html,body{margin:0;background:#01020a}
+body{color:var(--ink);font:16px/1.5 var(--sans);min-height:100dvh;overflow-x:clip;-webkit-tap-highlight-color:transparent}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+a{color:var(--acc)}
+.sr{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+:focus-visible{outline:3px solid #fff;outline-offset:3px;border-radius:10px}
+[tabindex="-1"]:focus{outline:none}
+.num{font-variant-numeric:tabular-nums}
+
+/* ---------- the sea ---------- */
+#sea{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none}
+.water{position:absolute;inset:0;background:linear-gradient(180deg,#38d6e6 0%,#14a6c6 6%,#0a72aa 15%,#06428a 28%,#0a2468 44%,#0b1450 58%,#08093a 72%,#040420 86%,#010008 100%);background-size:100% 800%;background-position:50% 0%}
+#fx{position:absolute;inset:0;width:100%;height:100%}
+.caustic{position:absolute;inset:-30% -30% 50% -30%;mix-blend-mode:screen;opacity:.35;background:
+ radial-gradient(70px 24px at 20% 30%,rgba(190,255,255,.55),transparent 70%),
+ radial-gradient(90px 28px at 60% 18%,rgba(190,255,255,.45),transparent 70%),
+ radial-gradient(56px 20px at 82% 44%,rgba(190,255,255,.5),transparent 70%),
+ radial-gradient(100px 34px at 38% 62%,rgba(190,255,255,.4),transparent 70%);
+ background-size:360px 220px;animation:caustic 7s ease-in-out infinite alternate}
+@keyframes caustic{to{background-position:70px 40px,-50px 30px,40px -20px,-70px 20px;transform:skewX(6deg) scaleY(1.1)}}
+.vignette{position:absolute;inset:0;background:radial-gradient(120% 90% at 50% 35%,transparent 45%,rgba(0,0,12,.65) 100%)}
+.floor{position:absolute;left:-10%;right:-10%;bottom:-30vh;height:70vh;background:radial-gradient(50% 50% at 50% 50%,rgba(63,245,224,.45),rgba(63,245,224,.08) 45%,transparent 70%);opacity:0}
+
+/* ---------- shell ---------- */
+.app{position:relative;z-index:1;min-height:100dvh}
+.app.shake{animation:shake .55s cubic-bezier(.36,.07,.19,.97)}
+@keyframes shake{10%,90%{transform:translate(-2px,1px)}20%,80%{transform:translate(4px,-2px)}30%,50%,70%{transform:translate(-7px,3px)}40%,60%{transform:translate(7px,-3px)}}
+.nav{position:fixed;z-index:20;left:0;right:0;bottom:0;height:calc(var(--navH) + env(safe-area-inset-bottom));padding-bottom:env(safe-area-inset-bottom);display:grid;grid-template-columns:repeat(4,1fr);background:rgba(1,4,14,.94);border-top:1px solid var(--line);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
+.nav a{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--mute);text-decoration:none;font-size:12.5px;font-weight:700;min-height:44px}
+.nav a svg{width:24px;height:24px}
+.nav a[aria-current=page]{color:var(--acc)}
+.nav .brand,.nav .dsk{display:none}
+main{padding:0 0 calc(var(--navH) + 28px + env(safe-area-inset-bottom))}
+main:focus{outline:none}
+.wrap{max-width:900px;margin:0 auto;padding:0 16px}
+body.playing .nav{display:none}
+body.playing main{padding-bottom:28px}
+@media(min-width:900px){
+  .app{display:grid;grid-template-columns:230px minmax(0,1fr)}
+  .nav{position:sticky;top:0;height:100dvh;display:flex;flex-direction:column;gap:4px;padding:22px 14px;border-top:0;border-right:1px solid var(--line);bottom:auto;overflow-y:auto}
+  .nav .brand{display:block;font:900 30px/1 var(--disp);color:var(--ink);text-decoration:none;padding:4px 10px 18px;letter-spacing:-.02em;text-shadow:0 0 24px rgba(63,245,224,.5)}
+  .nav .dsk{display:flex}
+  .nav a{flex-direction:row;justify-content:flex-start;gap:12px;padding:9px 12px;border-radius:12px;font-size:15px}
+  .nav a:hover{background:rgba(255,255,255,.06)}
+  .nav a[aria-current=page]{background:rgba(63,245,224,.14)}
+  .nav hr{border:0;border-top:1px solid var(--line);margin:10px 6px}
+  main{padding-bottom:48px}
+  body.playing .nav{display:flex}
+}
+
+/* ---------- shared pieces ---------- */
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:20px;box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 24px 60px -28px rgba(0,0,0,.8);-webkit-backdrop-filter:blur(14px) saturate(1.3);backdrop-filter:blur(14px) saturate(1.3)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:50px;padding:0 24px;border-radius:999px;border:2px solid var(--line);background:rgba(255,255,255,.07);font-weight:800;text-decoration:none;color:var(--ink);transition:transform .15s,background .2s}
+.btn:hover{background:rgba(255,255,255,.13)}
+.btn:active{transform:scale(.96)}
+.btn.primary{background:var(--acc);color:var(--accInk);border-color:transparent;box-shadow:0 0 0 1px rgba(255,255,255,.3) inset,0 12px 34px -10px rgba(63,245,224,.8)}
+.btn.primary:hover{background:#86fbef}
+.btn.danger{border-color:var(--hot);color:#ffd0d8}
+.btn.small{min-height:44px;padding:0 16px;font-size:15px}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:5px 13px;border-radius:999px;border:1px solid var(--line);font-size:14px;font-weight:700;background:rgba(2,8,22,.75)}
+.zc{display:inline-block;padding:2px 10px;border-radius:999px;font-size:13px;font-weight:900;color:#03101f;background:var(--zc);white-space:nowrap}
+.z0{--zc:var(--z0)}.z1{--zc:var(--z1)}.z2{--zc:var(--z2)}.z3{--zc:var(--z3)}.z4{--zc:var(--z4)}.z5{--zc:var(--z5)}.z6{--zc:var(--z6)}
+h1,h2,h3{text-wrap:balance;margin:0}
+.kicker{font-size:13px;font-weight:800;color:var(--mute);margin:0 0 6px;letter-spacing:.01em}
+.msgline{min-height:24px;font-size:15px;color:var(--mute);margin:6px 2px 0}
+.msgline.warn{color:#ffd2a6}
+.sect{font:900 24px/1.2 var(--disp);margin:38px 0 0}
+
+/* ---------- home ---------- */
+.home{padding-top:clamp(28px,6vw,60px)}
+.hero{display:grid;grid-template-columns:minmax(0,1fr);gap:22px;align-items:center}
+.title{font:900 clamp(78px,24vw,190px)/.86 var(--disp);letter-spacing:-.045em;margin:0;color:#fff;text-shadow:0 0 30px rgba(63,245,224,.55),0 0 90px rgba(47,180,255,.45),0 8px 0 rgba(0,20,40,.35)}
+.tag{font:900 clamp(20px,5.4vw,30px)/1.1 var(--disp);color:var(--acc);margin:12px 0 0;text-shadow:0 0 20px rgba(63,245,224,.6)}
+.lede{color:var(--ink);margin:14px 0 0;max-width:46ch;font-size:17px}
+.heroart{border-radius:26px;overflow:hidden;border:1px solid var(--line);box-shadow:0 30px 80px -30px rgba(47,180,255,.6)}
+.heroart svg{display:block;width:100%;height:auto}
+.heroart .bob{animation:bob 3.4s ease-in-out infinite}
+.heroart .pulse{animation:jpulse 2.2s ease-in-out infinite;transform-origin:center}
+@keyframes bob{50%{transform:translate(6px,14px) rotate(4deg)}}
+@keyframes jpulse{50%{transform:translateY(-8px) scaleY(.9)}}
+.cta{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-top:24px}
+.cta .btn.primary{position:relative;min-height:66px;font-size:21px;padding:0 34px}
+.cta .btn.primary::after{content:"";position:absolute;inset:-2px;border-radius:999px;border:2px solid var(--acc);animation:ctaring 2s ease-out infinite;pointer-events:none}
+@keyframes ctaring{from{transform:scale(1);opacity:.9}to{transform:scale(1.35,1.6);opacity:0}}
+.cta .btn svg{width:24px;height:24px}
+.countdown{color:var(--ink);font-size:15px;margin-top:12px}
+@media(min-width:760px){.hero{grid-template-columns:1.05fr .95fr}.title{font-size:clamp(80px,7.2vw,112px)}}
+.modes{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,160px),1fr));gap:12px;margin:16px 0 10px;padding:0;list-style:none}
+.mode{--mc:var(--acc);position:relative;overflow:hidden;display:flex;flex-direction:column;height:100%;padding:16px 16px 18px;border-radius:20px;background:var(--panel);border:1px solid var(--line);text-decoration:none;color:var(--ink);min-height:150px;transition:transform .25s var(--spring),border-color .2s,box-shadow .25s}
+.mode::before{content:"";position:absolute;right:-40px;top:-40px;width:130px;height:130px;border-radius:50%;background:radial-gradient(circle,var(--mc),transparent 70%);opacity:.28;transition:opacity .25s}
+.mode:hover{transform:translateY(-4px);border-color:var(--mc);box-shadow:0 18px 40px -18px var(--mc)}
+.mode:hover::before{opacity:.5}
+.mode .ic{width:46px;height:46px;border-radius:14px;display:grid;place-items:center;background:color-mix(in srgb,var(--mc) 22%,transparent);color:var(--mc);margin-bottom:12px}
+.mode .ic svg{width:26px;height:26px}
+.mode h3{font:900 20px/1.15 var(--disp)}
+.mode p{margin:6px 0 0;font-size:14px;color:var(--mute);line-height:1.4}
+.mode .best{margin-top:auto;padding-top:10px;font-size:13px;font-weight:800;color:var(--mc)}
+
+/* ---------- play ---------- */
+.bar{position:sticky;top:0;z-index:10;height:var(--barH);display:flex;align-items:center;gap:10px;padding:0 12px;background:rgba(1,6,18,.9);border-bottom:1px solid var(--line);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.bar .back{flex:none;width:44px;height:44px;border-radius:12px;border:1px solid var(--line);background:transparent;display:grid;place-items:center;text-decoration:none;color:var(--ink)}
+.bar .back svg{width:20px;height:20px}
+.bar h1{font:900 17px/1.1 var(--disp);flex:1}
+.bar h1 small{display:block;font:700 13px/1.25 var(--sans);color:var(--mute)}
+.bar .tot{font:900 22px/1 var(--disp);text-align:right;color:var(--acc)}
+.bar .tot small{display:block;font:700 12px/1.2 var(--sans);color:var(--mute)}
+.bar .btn{min-height:40px;padding:0 14px;font-size:14px}
+.play{display:grid;grid-template-columns:84px minmax(0,1fr);gap:10px;padding:12px 10px 0;max-width:900px;margin:0 auto}
+@media(min-width:600px){.play{grid-template-columns:124px minmax(0,1fr);gap:16px;padding:16px 16px 0}}
+.gauge{position:sticky;top:calc(var(--barH) + 12px);height:calc(100dvh - var(--barH) - 36px);max-height:740px;min-height:390px;border-radius:18px;background:rgba(1,6,20,.82);border:1px solid var(--line);padding:10px 6px;overflow:visible}
+.scale{position:relative;height:100%}
+.fill{position:absolute;left:0;right:0;top:0;height:0;border-radius:10px 10px 0 0;background:linear-gradient(180deg,rgba(63,245,224,0),rgba(63,245,224,.22));border-bottom:2px solid rgba(63,245,224,.8);box-shadow:0 6px 18px -4px rgba(63,245,224,.7);transition:height 1.2s var(--spring)}
+.seg{position:absolute;left:0;right:0;border-top:1px dashed rgba(200,230,255,.22);padding:3px 0 0 12px}
+.seg::before{content:"";position:absolute;left:2px;top:0;bottom:0;width:5px;border-radius:3px;background:var(--zc);box-shadow:0 0 10px var(--zc)}
+.seg b{position:relative;display:block;font-size:12px;line-height:1.15;font-weight:900;color:#e4f3ff}
+.seg span{position:relative;display:block;font-size:11px;line-height:1.2;color:var(--mute)}
+.seg.z6{border-top:1px solid var(--z6)}
+@media(max-width:599px){.seg span{display:none}.seg b{font-size:11px}}
+.diver{position:absolute;right:-16px;width:46px;height:46px;top:0;transform:translateY(-50%);transition:top 1.2s var(--spring);z-index:2}
+.diver svg{width:100%;height:100%;transform:rotate(62deg);filter:drop-shadow(0 0 10px rgba(63,245,224,.8))}
+.diver.sinking svg{animation:wiggle .5s ease-in-out 2}
+@keyframes wiggle{50%{transform:rotate(78deg) translateX(3px)}}
+.tick{position:absolute;left:-4px;width:10px;height:10px;border-radius:50%;background:var(--zc);border:2px solid #02060f;transform:translateY(-50%);box-shadow:0 0 8px var(--zc)}
+.col{display:flex;flex-direction:column;gap:12px;padding-bottom:22px}
+.card{padding:20px;transform-style:preserve-3d}
+.card.out{transition:transform .3s ease-in,opacity .3s;transform:perspective(900px) rotateY(88deg);opacity:.3}
+.card.in{animation:flipin .6s var(--spring)}
+@keyframes flipin{from{transform:perspective(900px) rotateY(-88deg);opacity:.3}to{transform:none;opacity:1}}
+.card.slide{animation:slidein .55s var(--spring)}
+@keyframes slidein{from{transform:translateY(40px) scale(.96);opacity:0}}
+.def{font:750 clamp(19px,5vw,25px)/1.34 var(--sans);margin:0}
+.ex{margin:12px 0 0;color:var(--mute);font-style:italic;font-size:16.5px}
+.mask{display:inline-block;font-style:normal;letter-spacing:2px;color:var(--ink);background:rgba(63,245,224,.2);border-radius:6px;padding:0 6px;font-weight:900}
+.hintout{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.hintout .chip{border-color:rgba(63,245,224,.5)}
+.oxy{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px;padding:10px 14px;border-radius:16px;background:var(--solid);border:1px solid var(--line)}
+.oxy b{font:900 13px/1 var(--disp);color:var(--mute)}
+.oxy .t{font:900 22px/1 var(--disp);min-width:3.2ch;text-align:right}
+.oxy .trk{height:12px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden}
+.oxy .trk i{display:block;height:100%;width:100%;transform-origin:left;border-radius:999px;background:linear-gradient(90deg,#2fb4ff,#3ff5e0);box-shadow:0 0 14px rgba(63,245,224,.7);transition:transform .12s linear}
+.oxy.low{border-color:var(--hot);animation:oxlow .5s ease-in-out infinite alternate}
+.oxy.low .trk i{background:linear-gradient(90deg,#ff4d6d,#ffb03d);box-shadow:0 0 16px rgba(255,77,109,.9)}
+.oxy.low .t{color:#ff9aac}
+@keyframes oxlow{to{box-shadow:0 0 0 4px rgba(255,77,109,.25)}}
+.airrow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 14px;border-radius:16px;background:var(--solid);border:1px solid var(--line)}
+.air{display:flex;gap:6px;align-items:center}
+.pip{width:19px;height:19px;border-radius:50%;border:2px solid rgba(220,250,255,.75);background:radial-gradient(circle at 32% 30%,#fff,rgba(160,240,255,.7) 45%,rgba(63,245,224,.3));transition:transform .45s var(--spring),opacity .4s}
+.pip.used{opacity:.22;transform:scale(.5) translateY(-10px);background:none}
+.airlab{font-size:14px;color:var(--mute);font-weight:700}
+form.guess{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}
+.guess input{height:60px;border-radius:16px;border:2px solid rgba(63,245,224,.5);background:#020b1c;padding:0 16px;font-size:19px;font-weight:800}
+.guess input::placeholder{color:#7f9db3;font-weight:600}
+.guess input:focus{outline:none;border-color:var(--acc);box-shadow:0 0 0 5px rgba(63,245,224,.22)}
+.guess input.ac{color:var(--warm);border-color:var(--warm);animation:acfx .6s var(--spring)}
+@keyframes acfx{0%{letter-spacing:6px;opacity:.2;transform:scale(.96)}100%{letter-spacing:0;opacity:1;transform:none}}
+.guess .btn{height:60px;border-radius:16px;padding:0 22px;font-size:18px}
+.skipbtn{justify-self:start}
+.result{padding:14px 16px;border-radius:16px;background:var(--solid);border:1px solid var(--line);display:none}
+.result.show{display:block;animation:slidein .45s var(--spring)}
+.result .top{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px}
+.result .m{font:900 30px/1 var(--disp);color:var(--zc,#fff)}
+.result p{margin:6px 0 0;color:var(--mute);font-size:15px}
+.cue{font-size:13px;font-weight:900;padding:2px 8px;border-radius:6px;background:rgba(255,255,255,.08)}
+.cue.deeper{color:#8dffb5}
+.hints{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+@media(min-width:600px){.hints{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.hint{min-height:54px;border-radius:14px;border:1px dashed rgba(190,230,255,.4);background:var(--solid);display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:6px 12px;text-align:left}
+.hint b{font-size:14px}
+.hint span{font-size:13px;color:#ffc9a6}
+.hint[aria-pressed=true]{border-style:solid;border-color:rgba(63,245,224,.5);opacity:.6}
+.log{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.log li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;align-items:center;padding:10px 14px;border-radius:14px;background:color-mix(in srgb,var(--zc) 18%,rgba(2,8,22,.9));border:1px solid color-mix(in srgb,var(--zc) 55%,transparent);animation:slidein .45s var(--spring)}
+.log .w{font-weight:900;overflow-wrap:anywhere}
+.log .w s{color:var(--mute);font-weight:600;margin-right:6px}
+.log .d{font:900 17px/1 var(--disp);text-align:right}
+.log .sub{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:13px;color:var(--mute)}
+.loghead{display:flex;justify-content:space-between;align-items:baseline;padding:9px 14px;margin-top:4px;border-radius:14px;background:var(--solid)}
+.loghead h2{font:900 16px/1 var(--disp)}
+.gate{text-align:center;padding:32px 20px}
+.gate .who{font:900 clamp(44px,13vw,80px)/1 var(--disp);color:var(--z1);text-shadow:0 0 30px rgba(255,207,61,.5);margin:8px 0 6px;overflow-wrap:anywhere}
+.gate p{color:var(--mute)}
+
+/* reveal */
+.reveal .term{font:900 clamp(42px,13vw,80px)/.96 var(--disp);letter-spacing:-.025em;margin:4px 0 2px;overflow-wrap:normal;word-break:keep-all;color:#fff;text-shadow:0 0 26px rgba(63,245,224,.5)}
+.reveal .pos{color:var(--mute);font-style:italic;margin:0 0 10px}
+.reveal mark{background:rgba(63,245,224,.24);color:var(--ink);border-radius:5px;padding:0 4px;font-style:normal;font-weight:900}
+.badge{display:inline-flex;align-items:center;gap:8px;margin-top:14px;padding:9px 15px;border-radius:12px;font-weight:900;font-size:15px}
+.badge.sl{background:var(--acc);color:var(--accInk);box-shadow:0 0 34px rgba(63,245,224,.7)}
+.badge.ac{background:rgba(255,176,61,.16);color:#ffe0a8;border:1px solid rgba(255,176,61,.55)}
+.badge.out{background:rgba(255,77,109,.14);color:#ffd0d8;border:1px solid rgba(255,77,109,.5)}
+.tally{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:16px 0 0;font-size:15px}
+.tally dt{color:var(--mute)}
+.tally dd{margin:0;text-align:right;font-weight:800}
+.scoreline{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:4px 12px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
+.scoreline span{color:var(--mute);font-size:15px}
+.scoreline b{font:900 clamp(32px,9.5vw,44px)/1 var(--disp);color:var(--acc);text-shadow:0 0 22px rgba(63,245,224,.5)}
+.next{margin-top:16px;width:100%}
+
+/* results */
+.sum{padding-top:24px}
+.totalbig{font:900 clamp(60px,17vw,120px)/.95 var(--disp);letter-spacing:-.035em;margin:8px 0 4px;color:var(--acc);text-shadow:0 0 34px rgba(63,245,224,.55),0 0 90px rgba(47,180,255,.35)}
+.stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:18px 0}
+@media(min-width:620px){.stats{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.stat{padding:14px 16px}
+.stat b{display:block;font:900 26px/1.1 var(--disp)}
+.stat span{font-size:13px;color:var(--mute)}
+.share{padding:16px}
+.share pre{margin:0 0 12px;font:16px/1.5 var(--sans);white-space:pre-wrap;background:rgba(0,0,0,.35);border-radius:12px;padding:12px}
+.share textarea{width:100%;min-height:150px;margin-top:10px;border-radius:12px;background:#020b1c;color:var(--ink);border:2px solid var(--acc);padding:10px;font:15px/1.5 var(--sans)}
+.terms{list-style:none;margin:12px 0 0;padding:0;display:flex;flex-direction:column;gap:8px}
+.terms li{padding:14px 16px}
+.terms h3{font:900 22px/1.1 var(--disp);display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.terms p{margin:6px 0 0;color:var(--mute);font-size:15px}
+.rowbtns{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}
+
+/* pages */
+.page{padding-top:28px}
+.page h1{font:900 clamp(40px,11vw,64px)/1 var(--disp);letter-spacing:-.03em;text-shadow:0 0 30px rgba(63,245,224,.35)}
+.page .intro{color:var(--ink);margin:10px 0 0;max-width:60ch;font-size:17px}
+.block{padding:18px;margin-top:14px}
+.block h2{font:900 21px/1.2 var(--disp);margin-bottom:8px}
+.block p,.block li{color:#d6e9f6}
+.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:12px;margin-top:16px}
+.steps .panel{padding:16px}
+.steps svg{width:44px;height:44px;color:var(--acc)}
+.steps h3{font:900 19px/1.2 var(--disp);margin:8px 0 4px}
+.steps p{margin:0;color:var(--mute);font-size:15px}
+.ladder{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
+.ladder li{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;padding:8px 10px;border-radius:10px;background:color-mix(in srgb,var(--zc) 14%,transparent)}
+.ladder .sw{width:14px;height:14px;border-radius:4px;background:var(--zc);box-shadow:0 0 8px var(--zc)}
+.ladder b{font-weight:900}
+.ladder span{color:var(--mute);font-size:14px;text-align:right}
+.tiers{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr));gap:8px;margin-top:6px}
+.tiers div{padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.06)}
+.tiers b{display:block}
+.tiers span{font-size:14px;color:var(--mute)}
+.opt{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 0;border-bottom:1px solid var(--line)}
+.opt:last-child{border-bottom:0}
+.opt p{margin:2px 0 0;font-size:14px;color:var(--mute)}
+.sw2{flex:none;width:60px;height:36px;border-radius:999px;border:2px solid var(--line);background:#081a36;position:relative}
+.sw2::after{content:"";position:absolute;top:4px;left:4px;width:24px;height:24px;border-radius:50%;background:#9bb3c6;transition:transform .25s var(--spring),background .2s}
+.sw2[aria-checked=true]{background:rgba(63,245,224,.3);border-color:var(--acc)}
+.sw2[aria-checked=true]::after{transform:translateX(24px);background:var(--acc)}
+.store{font-size:14px;color:var(--mute);margin-top:10px}
+.packs{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,240px),1fr));gap:12px;margin-top:18px;list-style:none;padding:0}
+.packs button{width:100%;text-align:left;min-height:130px}
+.days{list-style:none;margin:16px 0 0;padding:0;display:flex;flex-direction:column;gap:8px}
+.days a{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;align-items:center;padding:14px 16px;text-decoration:none;color:var(--ink)}
+.days a:hover{border-color:var(--acc)}
+.days b{font:900 18px/1.2 var(--disp)}
+.days span{font-size:14px;color:var(--mute)}
+.days .st{font:900 16px/1 var(--disp);text-align:right}
+.hist{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.hist .row{display:grid;grid-template-columns:96px minmax(0,1fr) 64px;gap:10px;align-items:center;font-size:14px}
+.hist .row b{font-weight:900}
+.hist .trk{height:22px;border-radius:0 4px 4px 0;background:rgba(255,255,255,.05);position:relative}
+.hist .trk i{position:absolute;left:0;top:0;bottom:0;border-radius:0 4px 4px 0;background:var(--zc);min-width:2px;transition:width .8s var(--spring)}
+.hist .row span{text-align:right;color:var(--mute)}
+.players{display:flex;flex-direction:column;gap:8px;margin:10px 0}
+.players .p{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}
+.players input,.field select{height:52px;border-radius:14px;border:2px solid var(--line);background:#020b1c;padding:0 14px;font-size:17px;font-weight:700}
+.players input:focus,.field select:focus{outline:none;border-color:var(--acc)}
+.field{display:flex;flex-direction:column;gap:6px;margin-top:12px;max-width:260px}
+.field label{font-weight:800}
+.board{list-style:none;margin:14px 0 0;padding:0;display:flex;flex-direction:column;gap:8px}
+.board li{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;padding:14px 16px}
+.board .rk{font:900 24px/1 var(--disp);color:var(--mute);width:1.6ch}
+.board .nm{font:900 20px/1.1 var(--disp);overflow-wrap:anywhere}
+.board .sc{font:900 22px/1 var(--disp);color:var(--acc)}
+.board li.win{border-color:var(--z1);box-shadow:0 0 40px -10px rgba(255,207,61,.7)}
+.board li.win .rk{color:var(--z1)}
+.rq{display:flex;flex-direction:column;gap:10px;margin-top:12px}
+.rq button{width:100%;text-align:left;padding:16px;border-radius:16px;border:2px solid var(--line);background:var(--solid);font-size:16px;line-height:1.4;min-height:64px;transition:transform .2s var(--spring),border-color .2s,background .2s}
+.rq button:hover:not([disabled]){border-color:var(--acc);transform:translateX(4px)}
+.rq button.right{border-color:var(--z3);background:rgba(62,224,122,.18)}
+.rq button.wrong{border-color:var(--hot);background:rgba(255,77,109,.16);animation:nope .4s}
+.rq button[disabled]{cursor:default}
+@keyframes nope{25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
+.bigterm{font:900 clamp(46px,14vw,92px)/.95 var(--disp);letter-spacing:-.03em;margin:6px 0 2px;overflow-wrap:normal;word-break:keep-all;text-shadow:0 0 30px rgba(63,245,224,.45)}
+
+/* bursts, modal, flash, toast */
+#burst{position:fixed;inset:0;z-index:45;pointer-events:none;display:grid;place-items:center;overflow:hidden}
+.wb{position:relative;text-align:center;padding:0 12px;animation:wbout .55s ease-in forwards;animation-delay:var(--hold,1.2s)}
+.scrim{position:absolute;inset:0;background:radial-gradient(circle at 50% 50%,rgba(0,5,18,.82),rgba(0,5,18,.55) 55%,rgba(0,5,18,.25));animation:scrim 1.6s ease forwards}
+.scrim.close{background:radial-gradient(circle at 50% 50%,rgba(0,5,18,.7),rgba(0,5,18,.3) 55%,transparent)}
+@keyframes scrim{0%{opacity:0}12%{opacity:1}72%{opacity:1}100%{opacity:0}}
+html.rm .scrim{opacity:1}
+.wb .word{font:900 clamp(66px,22vw,190px)/.92 var(--disp);letter-spacing:-.03em;color:var(--zc);text-shadow:0 0 26px var(--zc),0 0 80px var(--zc),0 8px 0 rgba(0,0,0,.35);max-width:94vw}
+.wb .w{display:inline-block;white-space:nowrap;margin:0 .14em}
+.wb .l{display:inline-block;animation:lpop .8s cubic-bezier(.18,1.7,.4,1) both;animation-delay:calc(var(--i) * 55ms)}
+.wb.exact .word,.wb.slanger .word{font-size:clamp(74px,26vw,230px);color:#fff;text-shadow:0 0 24px var(--z6),0 0 70px var(--z6),0 0 140px #2fb4ff,0 8px 0 rgba(0,0,0,.35)}
+.wb.exact .l,.wb.slanger .l{animation:ldrop 1s cubic-bezier(.2,.9,.3,1.2) both;animation-delay:calc(var(--i) * 70ms)}
+.wb .kick{font:900 clamp(20px,5.6vw,36px)/1 var(--disp);letter-spacing:.04em;color:#fff;margin-top:16px;animation:kin .6s .35s both;text-shadow:0 0 16px var(--zc)}
+.wb .kick em{font-style:normal;color:var(--zc)}
+@keyframes lpop{0%{opacity:0;transform:translateY(.6em) scale(.2) rotate(-16deg)}100%{opacity:1;transform:none}}
+@keyframes ldrop{0%{opacity:0;transform:translateY(-1.6em) scale(1.8)}55%{opacity:1;transform:translateY(.1em) scale(1.08,.9)}75%{transform:translateY(-.06em) scale(.97,1.04)}100%{transform:none}}
+@keyframes kin{from{opacity:0;transform:translateY(20px) scale(.8)}}
+@keyframes wbout{to{opacity:0;transform:scale(1.12) translateY(-40px);filter:blur(6px)}}
+.ring{position:absolute;left:50%;top:50%;width:44px;height:44px;margin:-22px;border-radius:50%;border:4px solid var(--zc);box-shadow:0 0 20px var(--zc);animation:ring 1.2s cubic-bezier(.15,.8,.3,1) both;animation-delay:var(--d,0s);opacity:0}
+@keyframes ring{0%{transform:scale(.2);opacity:1}100%{transform:scale(30);opacity:0}}
+.modal{position:fixed;inset:0;z-index:50;display:grid;place-items:center;padding:16px;background:rgba(0,2,10,.72)}
+.modal .box{max-width:440px;width:100%;padding:22px}
+.modal h2{font:900 24px/1.1 var(--disp)}
+.modal p{color:#d6e9f6}
+.modal .row{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;margin-top:16px}
+#flash{position:fixed;inset:0;z-index:44;pointer-events:none;opacity:0;background:radial-gradient(circle at 50% 50%,rgba(170,255,246,.95),rgba(63,245,224,.45) 28%,rgba(47,180,255,.15) 55%,transparent 75%)}
+#flash.on{animation:flash 1.6s ease-out forwards}
+@keyframes flash{0%{opacity:0}8%{opacity:1}18%{opacity:.5}26%{opacity:.95}100%{opacity:0}}
+#toast{position:fixed;left:50%;bottom:calc(var(--navH) + 20px);transform:translateX(-50%);z-index:60;background:#f2fbff;color:#03101f;font-weight:800;padding:10px 18px;border-radius:999px;opacity:0;transition:opacity .25s;pointer-events:none;max-width:90vw;text-align:center}
+#toast.on{opacity:1}
+
+/* reduced motion + high contrast */
+html.rm *,html.rm *::before,html.rm *::after{animation:none!important;transition:none!important}
+html.rm .caustic{display:none}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}.caustic{display:none}}
+html.hc{--panel:#000;--solid:#000;--line:#fff;--mute:#fff;--ink:#fff}
+html.hc .water{filter:brightness(.25) saturate(.5)}
+html.hc .caustic,html.hc #fx,html.hc .floor{display:none}
+html.hc .panel,html.hc .mode,html.hc .gauge,html.hc .bar,html.hc .result,html.hc .oxy,html.hc .airrow,html.hc .loghead,html.hc .hint,html.hc .rq button{background:#000;border:2px solid #fff;-webkit-backdrop-filter:none;backdrop-filter:none;box-shadow:none}
+html.hc .log li,html.hc .ladder li{background:#000;border:2px solid var(--zc)}
+html.hc .seg b,html.hc .seg span,html.hc .hint span,html.hc .mode p{color:#fff}
+html.hc .guess input{background:#000;border-color:#fff}
+</style>
+</head>
+<body>
+<div id="sea" aria-hidden="true"><div class="water"></div><div class="caustic"></div><canvas id="fx"></canvas><div class="floor"></div><div class="vignette"></div></div>
+<div class="app" id="app">
+  <nav class="nav" aria-label="Main">
+    <a class="brand" href="#home">Slanger</a>
+    <a href="#home" data-nav="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/></svg>Home</a>
+    <a href="#daily" data-nav="daily"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6c2 1.5 4 1.5 6 0s4-1.5 6 0 4 1.5 6 0"/><circle cx="12" cy="13" r="2.2"/><path d="M12 15.2V21M9 18l3 3 3-3"/></svg>Daily</a>
+    <a class="dsk" href="#endless" data-nav="endless"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6.5 9a3.5 3.5 0 1 0 0 6c2.5 0 3.5-3 5.5-3s3 3 5.5 3a3.5 3.5 0 1 0 0-6c-2.5 0-3.5 3-5.5 3S9 9 6.5 9z"/></svg>Endless</a>
+    <a class="dsk" href="#archive" data-nav="archive"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>Archive</a>
+    <a class="dsk" href="#packs" data-nav="packs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>Packs</a>
+    <a class="dsk" href="#speed" data-nav="speed"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 13l3-3M10 2h4"/></svg>Speed Trench</a>
+    <a class="dsk" href="#reverse" data-nav="reverse"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M7 4L3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7"/></svg>Reverse Dive</a>
+    <a class="dsk" href="#party" data-nav="party"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="9" r="3"/><circle cx="16" cy="9" r="3"/><path d="M2 20c0-3 3-5 6-5s6 2 6 5M14 15c3 0 8 1 8 5"/></svg>Puffer Party</a>
+    <a href="#stats" data-nav="stats"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M5 20V12M12 20V5M19 20v-9"/></svg>Stats</a>
+    <a href="#options" data-nav="options"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>Options</a>
+  </nav>
+  <main id="view" tabindex="-1"></main>
+</div>
+<div id="live" class="sr" aria-live="polite" aria-atomic="true"></div>
+<div id="flash" aria-hidden="true"></div>
+<div id="burst" aria-hidden="true"></div>
+<div id="toast" aria-hidden="true"></div>
+<div id="modal" class="modal" hidden><div class="box panel" role="dialog" aria-modal="true" aria-labelledby="mtitle"><h2 id="mtitle"></h2><p id="mbody"></p><div class="row" id="mrow"></div></div></div>
+<script>
+(function () {
+'use strict';
+
+/* =====================================================================
+   CONFIG
+   ===================================================================== */
+const CONFIG = {
+  NAME: 'Slanger',
+  TAGLINE: 'one in a slanger',
+  STORE_KEY: 'slanger.v1',
+  LEGACY_KEYS: ['deepdive.v1'],
+  SCHEMA: 2,
+  EPOCH: '2026-11-01',          // Dive #1
+  PER_DAY: 7,
+  MAX_GUESSES: 6,
+  SHARE_URL: 'slanger-game.netlify.app', // change to the real address once it is on the web
+  AUTOCORRECT_SCORE: 92,        // a typo of the answer solves it, but never reaches the Slanger
+  BONUS_PER_SPARE_GUESS: 150,
+  HINT_CAP: 9999,               // once a hint is taken the trench is out of reach
+  WORD_MS: 60000,               // oxygen per word
+  TIME_BONUS_PER_SEC: 20,       // clean solves bank 20m per second of oxygen left
+  SPEED_MS: 90000,              // Speed Trench clock
+  REVERSE_QS: 10,
+  PACK_SIZE: 8,
+  PACKS: [
+    { key: 'money',     name: 'Money',     tags: ['money', 'rich', 'poor', 'stingy'], blurb: 'Broke, minted and everything in between.' },
+    { key: 'drunk',     name: 'Drunk',     tags: ['drunk', 'hangover'],               blurb: 'From tipsy to absolutely legless.' },
+    { key: 'internet',  name: 'Internet',  tags: ['internet'],                        blurb: 'Words that only make sense online.' },
+    { key: 'gym',       name: 'Gym',       tags: ['gym'],                             blurb: 'Gains, gym rats and skipped leg days.' },
+    { key: 'workplace', name: 'Workplace', tags: ['work'],                            blurb: 'Office-speak and quiet rebellion.' },
+    { key: '2000s',     name: '2000s',     tags: [],                                  blurb: 'Bling, noobs and frosted tips.' }
+  ],
+  HINTS: [
+    { key: 'letter', label: 'First letter', cost: 1200 },
+    { key: 'length', label: 'Length',       cost: 600 },
+    { key: 'pos',    label: 'Word type',    cost: 400 },
+    { key: 'peek',   label: 'Peek letters', cost: 2500 }
+  ],
+  // score bands → word-themed depth zones (index doubles as zone colour z0..z6)
+  ZONES: [
+    { key: 'gibberish',  name: 'Gibberish',  min: 0,   max: 9,   d0: 0,     d1: 50,    emoji: '⬜' },
+    { key: 'smalltalk',  name: 'Small Talk', min: 10,  max: 29,  d0: 50,    d1: 200,   emoji: '🟨' },
+    { key: 'buzzword',   name: 'Buzzword',   min: 30,  max: 49,  d0: 200,   d1: 1000,  emoji: '🟧' },
+    { key: 'jargon',     name: 'Jargon',     min: 50,  max: 69,  d0: 1000,  d1: 4000,  emoji: '🟩' },
+    { key: 'vernacular', name: 'Vernacular', min: 70,  max: 89,  d0: 4000,  d1: 6000,  emoji: '🟦' },
+    { key: 'lingo',      name: 'Lingo',      min: 90,  max: 99,  d0: 6000,  d1: 10000, emoji: '🟪' },
+    { key: 'slanger',    name: 'Slanger',    min: 100, max: 100, d0: 10994, d1: 10994, emoji: '🎯' }
+  ],
+  // Guess filter: FNV-1a hashes of a short slur blocklist, so the source never shows the words.
+  BLOCK: [2758825305,3656079069,3145298922,114692382,2505785029,2985822365,393612970,3567499394,2491417249,1666915128,2542039190,336914794,3052073563,3691556361,3685394958,4137990222,2186151943,2285825857,2078392381,919192496,43985913,4183830597,3362514178,2235558830,2694860007,4064161250,3907107651,2113294878,3083059607,4253324943,4146676842,4090638839,4010308924,2572200797,1355679576,1803168878,3791304153,1739324062,486633437,2534310150,3934708178,1106047698,4203129625,854130228,1808288197,1937589700,2897868054,2472705780,3421350764,639918541,1578156065,1892801000,1674402588],
+  SEED_SNAPSHOT: ["dd-0005", "dd-0008", "dd-0029", "dd-0074", "dd-0007", "dd-0009", "dd-0069"]
+};
+
+/* =====================================================================
+   =====================================================================
+   ==                                                                 ==
+   ==   PUZZLE DATA  —  replace this whole array to swap the pack.    ==
+   ==   Schema per entry is fixed: id, term, pos, definition,         ==
+   ==   example (term masked as ___), tags, difficulty 1-5, pack,     ==
+   ==   nsfw, exact[], tiers{hot[], warm[], cool[]}.                  ==
+   ==   Definitions and examples are original, written for Slanger.  ==
+   ==                                                                 ==
+   =====================================================================
+   ===================================================================== */
+const PUZZLES = [
+{id:"dd-0001",term:"hammered",pos:"adjective",definition:"So far past tipsy that walking is now a group project.",example:"He was ___ before the starters even arrived.",tags:["drunk","party"],difficulty:1,pack:"core",nsfw:false,exact:["hammered"],tiers:{hot:["wasted","plastered","smashed","trashed","sloshed","legless","battered"],warm:["drunk","tipsy","buzzed","merry","lit","steaming"],cool:["hungover","pub","pint","shots","pregame"]}},
+{id:"dd-0002",term:"broke",pos:"adjective",definition:"The state of opening your banking app with one eye closed. Payday is a rumour.",example:"Can't come out tonight, I'm ___ until Friday.",tags:["money","poor"],difficulty:1,pack:"core",nsfw:false,exact:["broke","flat broke","dead broke","brokey"],tiers:{hot:["skint","strapped","penniless","brassic","bankrupt","cash strapped","poor"],warm:["struggling","overdrawn","cheap","tight","frugal"],cool:["money","cash","bills","payday","rent"]}},
+{id:"dd-0003",term:"salty",pos:"adjective",definition:"Bitter about something tiny, and making sure the whole group chat knows it.",example:"He's still ___ about losing at Mario Kart.",tags:["bitter","angry"],difficulty:3,pack:"core",nsfw:false,exact:["salty","salted"],tiers:{hot:["bitter","sour","pressed","petty","sore","mardy"],warm:["annoyed","angry","upset","grumpy","jealous","sulking","moody","mad"],cool:["savage","shade","toxic","drama"]}},
+{id:"dd-0004",term:"ghost",pos:"verb",definition:"To end things by simply never replying again. No explanation, just vanishing like a bad Wi-Fi signal.",example:"Three great dates and then she decided to ___ me.",tags:["ignore","romance","leave"],difficulty:2,pack:"core",nsfw:false,exact:["ghost","ghosted","ghosting","ghosts"],tiers:{hot:["ignore","blank","vanish","disappear","cut off","block","leave on read"],warm:["dump","unfollow","bail","flake","curve","mute"],cool:["dating","text","breakup","situationship"]}},
+{id:"dd-0005",term:"lit",pos:"adjective",definition:"When a night has gone from fine to gloriously out of control in the space of one song.",example:"That house party got properly ___ after midnight.",tags:["cool","party","excited","impressed"],difficulty:1,pack:"core",nsfw:false,exact:["lit","litty"],tiers:{hot:["fire","poppin","turnt","banging","wild","epic","sick"],warm:["cool","fun","hype","crazy","buzzing","mad"],cool:["drunk","rave","club","candle"]}},
+{id:"dd-0006",term:"sus",pos:"adjective",definition:"Shifty, off, not adding up. For when someone's story has more holes than a colander.",example:"Him leaving right before the bill came? Very ___.",tags:["suspicious","fake","lie"],difficulty:2,pack:"core",nsfw:false,exact:["sus","suss"],tiers:{hot:["suspicious","shady","sketchy","dodgy","fishy","dubious"],warm:["sneaky","sly","fake","iffy","weird","cap"],cool:["impostor","liar","cheat","lie"]}},
+{id:"dd-0007",term:"flex",pos:"verb",definition:"To show off something you own or did, ideally while pretending you aren't showing off.",example:"He wore the new watch to five-a-side just to ___.",tags:["show-off","money"],difficulty:2,pack:"core",nsfw:false,exact:["flex","flexing","flexed","flexes","weird flex"],tiers:{hot:["show off","brag","boast","stunt","floss","peacock"],warm:["humblebrag","swagger","bling","pose","clout","ballin"],cool:["gym","muscles","rich","watch"]}},
+{id:"dd-0008",term:"cringe",pos:"adjective",definition:"So awkward or try-hard that watching it makes your soul fold in on itself like a deckchair.",example:"His proposal video was so ___ I had to mute it.",tags:["embarrassing"],difficulty:1,pack:"core",nsfw:false,exact:["cringe","cringey","cringy","cringeworthy"],tiers:{hot:["awkward","embarrassing","second hand embarrassment","yikes","oof","cheesy"],warm:["corny","try hard","lame","tacky","painful","weird"],cool:["basic","mid","ick","extra"]}},
+{id:"dd-0009",term:"basic",pos:"adjective",definition:"Likes exactly what everyone else likes, loudly, holding a pumpkin spice latte.",example:"Live, laugh, love wall art? That's peak ___.",tags:["mainstream","boring","insult"],difficulty:3,pack:"core",nsfw:false,exact:["basic","basic b"],tiers:{hot:["mainstream","generic","unoriginal","vanilla","normie","predictable"],warm:["boring","plain","mid","lame","cliche","beige"],cool:["cringe","extra","influencer","latte"]}},
+{id:"dd-0010",term:"extra",pos:"adjective",definition:"Doing far too much, constantly, for no reason. Turned a quiet birthday dinner into a three-act musical.",example:"Fireworks for a group chat anniversary? She's so ___.",tags:["dramatic","show-off"],difficulty:3,pack:"core",nsfw:false,exact:["extra","so extra"],tiers:{hot:["over the top","too much","dramatic","ott","theatrical","a lot"],warm:["flashy","attention seeker","diva","bougie","loud","drama queen"],cool:["basic","drama","cringe","flex"]}},
+{id:"dd-0011",term:"shade",pos:"noun",definition:"A subtle, deniable insult, delivered with a smile so sweet you only notice the wound on the bus home.",example:"She called my haircut 'brave'. That was pure ___.",tags:["insult","gossip"],difficulty:4,pack:"core",nsfw:false,exact:["shade","throw shade","throwing shade","threw shade"],tiers:{hot:["diss","dig","jab","burn","read","side eye"],warm:["insult","roast","clapback","snark","sarcasm","petty"],cool:["salty","tea","drama","beef"]}},
+{id:"dd-0012",term:"savage",pos:"adjective",definition:"Brutally, impressively harsh. A comeback so cold it needs its own weather warning.",example:"She replied 'who?' to his apology text. Absolutely ___.",tags:["insult","impressed"],difficulty:3,pack:"core",nsfw:false,exact:["savage","savagery","savages"],tiers:{hot:["brutal","ruthless","cold","cutthroat","merciless","cold blooded"],warm:["harsh","mean","burn","roast","ice cold","gangster"],cool:["shade","clapback","rude","bold"]}},
+{id:"dd-0013",term:"stan",pos:"verb",definition:"To support a celebrity with the dedication of a full-time job and none of the pay.",example:"I don't just like her albums, I ___ her.",tags:["fan","obsessed"],difficulty:3,pack:"core",nsfw:false,exact:["stan","stans","stanning","stanned"],tiers:{hot:["superfan","fanatic","obsess","idolise","worship","fangirl","fanboy"],warm:["fan","simp","devoted","groupie","follower","die hard"],cool:["celebrity","fandom","idol","concert"]}},
+{id:"dd-0014",term:"FOMO",pos:"noun",definition:"The panic that everyone else is having a better time than you, usually felt alone on a sofa.",example:"Skipped the festival and the ___ is eating me alive.",tags:["anxious","party"],difficulty:2,pack:"core",nsfw:false,exact:["fomo","fear of missing out"],tiers:{hot:["missing out","left out","envy","jealousy"],warm:["jealous","anxious","regret","yolo","restless","insecure"],cool:["party","instagram","festival","sofa"]}},
+{id:"dd-0015",term:"hangry",pos:"adjective",definition:"So hungry your personality has been replaced by a small, furious goblin.",example:"Don't talk to me before lunch, I'm ___.",tags:["hungry","angry"],difficulty:1,pack:"core",nsfw:false,exact:["hangry","hangryness"],tiers:{hot:["hungry and angry","starving","ravenous","snappy","cranky","famished"],warm:["hungry","grumpy","irritable","angry","peckish","moody"],cool:["snack","lunch","food","munchies"]}},
+{id:"dd-0016",term:"bae",pos:"noun",definition:"Your favourite person, romantically speaking. Sounds adorable until someone says it out loud on a train.",example:"Can't tonight, it's date night with ___.",tags:["romance","love"],difficulty:1,pack:"core",nsfw:false,exact:["bae"],tiers:{hot:["boo","babe","baby","sweetheart","partner","boyfriend","girlfriend","other half"],warm:["crush","darling","honey","love","wifey","hubby"],cool:["date","situationship","bestie","ex"]}},
+{id:"dd-0017",term:"slay",pos:"verb",definition:"To do something so well it should be illegal. Applies to outfits, exams and karaoke equally.",example:"That outfit? You're going to ___ tonight.",tags:["success","impressed","attractive"],difficulty:2,pack:"core",nsfw:false,exact:["slay","slayed","slays","slaying","slayy"],tiers:{hot:["kill it","crush it","smash it","nail it","dominate","ace"],warm:["win","succeed","rock","own it","serve","eat"],cool:["fierce","queen","fire","goat"]}},
+{id:"dd-0018",term:"vibe",pos:"noun",definition:"The invisible energy of a room or a person. Cannot be explained, only checked.",example:"Not sure why, but this café has a great ___.",tags:["mood","cool"],difficulty:2,pack:"core",nsfw:false,exact:["vibe","vibes","vibing","vibe check"],tiers:{hot:["mood","energy","atmosphere","aura","feel","ambience"],warm:["feeling","aesthetic","groove","spirit","chill","tone"],cool:["music","playlist","party","sound"]}},
+{id:"dd-0019",term:"lowkey",pos:"adverb",definition:"Quietly, secretly, or a little bit. The thing you're admitting to, but under your breath.",example:"I ___ want to leave this party already.",tags:["secret"],difficulty:4,pack:"core",nsfw:false,exact:["lowkey","low key"],tiers:{hot:["secretly","kinda","quietly","sort of","a bit","discreetly"],warm:["subtle","honestly","tbh","slightly","privately","ngl"],cool:["highkey","chill","calm","introvert"]}},
+{id:"dd-0020",term:"no cap",pos:"phrase",definition:"No lie, for real, I swear. Attach to the end of any claim to make it legally binding.",example:"Best burger of my entire life, ___.",tags:["truth"],difficulty:4,pack:"core",nsfw:false,exact:["no cap","nocap","no capping"],tiers:{hot:["for real","deadass","no lie","on god","fr","real talk","i swear"],warm:["seriously","literally","facts","honestly","legit","true"],cool:["cap","lie","sus","promise"]}},
+{id:"dd-0021",term:"bougie",pos:"adjective",definition:"Fancy in a slightly try-hard way. Will only drink oat milk from a glass bottle.",example:"Truffle crisps from a petrol station? That's very ___.",tags:["fancy","rich","show-off"],difficulty:4,pack:"core",nsfw:false,exact:["bougie","boujee","boujie","boojie","bourgeois"],tiers:{hot:["fancy","posh","upscale","high maintenance","classy","snobby"],warm:["rich","flashy","pretentious","luxury","pricey","extra","la di da"],cool:["basic","money","brunch","champagne"]}},
+{id:"dd-0022",term:"clapback",pos:"noun",definition:"A sharp, perfectly timed reply to criticism that ends the conversation on the spot.",example:"Her ___ to that troll got more likes than the original post.",tags:["insult","conflict"],difficulty:5,pack:"core",nsfw:false,exact:["clapback","clap back","clapbacks","clapping back","clapped back"],tiers:{hot:["comeback","retort","burn","comeback line","mic drop","own"],warm:["roast","shade","diss","read","savage","reply"],cool:["argument","twitter","troll","beef"]}},
+{id:"dd-0023",term:"tea",pos:"noun",definition:"Gossip, especially the juicy unconfirmed kind. Best served hot and spilled immediately.",example:"Sit down, I've got the ___ on what happened at the wedding.",tags:["gossip"],difficulty:3,pack:"core",nsfw:false,exact:["tea","the tea","spill the tea","spill tea"],tiers:{hot:["gossip","goss","dirt","scoop","juice","rumours","rumors"],warm:["drama","news","receipts","intel","lowdown","scandal"],cool:["shade","chat","beef","coffee"]}},
+{id:"dd-0024",term:"GOAT",pos:"noun",definition:"Greatest of all time. Handed out in heated arguments about footballers and cheese toasties.",example:"Forget the rest, she's the ___ of the group chat.",tags:["best","impressed"],difficulty:2,pack:"core",nsfw:false,exact:["goat","g o a t","greatest of all time","the goat"],tiers:{hot:["legend","the best","icon","king","queen","champ","mvp"],warm:["hero","elite","top tier","boss","master","ace"],cool:["sport","trophy","fire","slay"]}},
+{id:"dd-0025",term:"mid",pos:"adjective",definition:"Average, unremarkable, fine. The cruellest review there is, because it isn't even bad.",example:"Everyone hyped that film but honestly it was ___.",tags:["average","boring","bad"],difficulty:3,pack:"core",nsfw:false,exact:["mid"],tiers:{hot:["average","mediocre","meh","so so","okay","middling","alright"],warm:["basic","boring","bland","overrated","lame","forgettable"],cool:["trash","fire","decent","rating"]}},
+{id:"dd-0026",term:"rizz",pos:"noun",definition:"The natural ability to charm someone you fancy, usually with zero effort and suspicious success.",example:"He talked his way into her number with pure ___.",tags:["charm","romance"],difficulty:3,pack:"core",nsfw:false,exact:["rizz","rizzed","rizzing","rizz up","rizzler"],tiers:{hot:["charisma","charm","game","swagger","smooth","flirting","chat"],warm:["confidence","aura","flirt","pull","mack","suave"],cool:["dating","crush","bae","wingman"]}},
+{id:"dd-0027",term:"glow up",pos:"noun",definition:"A dramatic change for the better, ideally unveiled at a school reunion with maximum smugness.",example:"Did you see him at the reunion? Massive ___.",tags:["improve","attractive"],difficulty:3,pack:"core",nsfw:false,exact:["glow up","glowup","glowed up","glowing up"],tiers:{hot:["transformation","makeover","upgrade","level up","revamp","come up"],warm:["improvement","before and after","new me","fresh start","blossom","comeback"],cool:["selfie","gym","haircut","reunion"]}},
+{id:"dd-0028",term:"simp",pos:"noun",definition:"Someone who does far too much for a person who barely knows their name.",example:"He bought her a car after one date. Total ___.",tags:["romance","desperate","obsessed"],difficulty:4,pack:"core",nsfw:false,exact:["simp","simps","simping","simped"],tiers:{hot:["doormat","pushover","lapdog","lovesick","white knight","whipped"],warm:["stan","fanboy","desperate","needy","sucker","romantic"],cool:["friendzone","crush","bae","dating"]}},
+{id:"dd-0029",term:"bail",pos:"verb",definition:"To leave or cancel, usually at the last possible moment with an excuse nobody believes.",example:"Sorry, I'm going to ___ on drinks tonight.",tags:["leave","cancel"],difficulty:2,pack:"core",nsfw:false,exact:["bail","bailed","bailing","bails"],tiers:{hot:["flake","ditch","cancel","dip","bounce","bow out","back out"],warm:["ghost","cop out","peace out","run","split","skip","leave"],cool:["excuse","plans","party","jail"]}},
+{id:"dd-0030",term:"chill",pos:"verb",definition:"To relax and do absolutely nothing productive, ideally on someone else's sofa.",example:"We're just going to ___ at mine and watch films.",tags:["relax","calm","cool"],difficulty:1,pack:"core",nsfw:false,exact:["chill","chillin","chilling","chilled","chill out"],tiers:{hot:["relax","hang out","kick back","unwind","laid back","mellow","hang"],warm:["calm","easy going","lounge","rest","cotch","lowkey"],cool:["cold","vibe","netflix","sofa"]}},
+{id:"dd-0031",term:"dope",pos:"adjective",definition:"Seriously cool. A word that peaked in the nineties and simply refuses to retire.",example:"Those trainers are ___, where'd you get them?",tags:["cool","good","impressed"],difficulty:3,pack:"core",nsfw:false,exact:["dope","dopest"],tiers:{hot:["cool","sick","fire","awesome","rad","fresh","wicked"],warm:["great","nice","sweet","ace","banging","fly"],cool:["drugs","swag","legit","high"]}},
+{id:"dd-0032",term:"clutch",pos:"adjective",definition:"Coming through exactly when it mattered. Last-second, high-pressure, perfectly timed.",example:"You brought a phone charger? That's so ___.",tags:["success","timing","helpful"],difficulty:5,pack:"core",nsfw:false,exact:["clutch","so clutch"],tiers:{hot:["lifesaver","came through","timely","perfect timing","crucial","game changer"],warm:["handy","useful","legend","hero","nick of time","money"],cool:["bag","sport","win","goat"]}},
+{id:"dd-0033",term:"bet",pos:"interjection",definition:"Yes, deal, sounds good. A full agreement compressed into three letters.",example:"Pick you up at eight? ___.",tags:["agree"],difficulty:3,pack:"core",nsfw:false,exact:["bet","bet bet"],tiers:{hot:["deal","okay","ok","sure","yes","sounds good","for sure","say less"],warm:["alright","fine","agreed","word","done","aight"],cool:["gamble","wager","no cap","promise"]}},
+{id:"dd-0034",term:"beef",pos:"noun",definition:"A long-running grudge between two people, usually started over something nobody can remember.",example:"Those two have had ___ since Year 9.",tags:["conflict","angry"],difficulty:4,pack:"core",nsfw:false,exact:["beef","beefing","beefin"],tiers:{hot:["feud","grudge","fight","rivalry","bad blood","issue"],warm:["argument","row","conflict","drama","war","tension"],cool:["cow","burger","shade","salty"]}},
+{id:"dd-0035",term:"shook",pos:"adjective",definition:"So surprised or rattled that your brain needs a minute to reboot.",example:"That plot twist had me ___ for a week.",tags:["surprised","scared"],difficulty:3,pack:"core",nsfw:false,exact:["shook","shooketh","shookt"],tiers:{hot:["shocked","stunned","gobsmacked","speechless","floored","rattled","mind blown"],warm:["surprised","scared","spooked","startled","dumbstruck","shaken"],cool:["shake","earthquake","nervous","scream"]}},
+{id:"dd-0036",term:"deadass",pos:"adverb",definition:"Completely serious. Not joking even slightly, and a bit offended you'd think so.",example:"I ___ saw a fox ride the night bus.",tags:["truth"],difficulty:5,pack:"core",nsfw:true,exact:["deadass","dead ass"],tiers:{hot:["seriously","for real","no cap","no lie","fr","on god"],warm:["honestly","literally","truly","legit","really","actually"],cool:["dead","joke","cap","lie"]}},
+{id:"dd-0037",term:"bussin",pos:"adjective",definition:"Food so good it deserves a standing ovation. Mostly applied to wings, chips and your nan's cooking.",example:"These wings are actually ___.",tags:["food","good"],difficulty:4,pack:"core",nsfw:false,exact:["bussin","bussing","bussin bussin"],tiers:{hot:["delicious","tasty","banging","fire","slaps","yummy","scrumptious"],warm:["good","great","amazing","peng","moreish","lit"],cool:["food","hungry","snack","bus"]}},
+{id:"dd-0038",term:"yeet",pos:"verb",definition:"To throw something with enormous force and absolutely no regard for where it lands.",example:"Lost the match and ___ed his controller into the sofa.",tags:["throw","excited"],difficulty:3,pack:"core",nsfw:false,exact:["yeet","yeeted","yeeting","yote"],tiers:{hot:["throw","chuck","launch","hurl","lob","fling","toss"],warm:["smash","drop","kick","slam","pitch","bin"],cool:["jump","dance","shout","yolo"]}},
+{id:"dd-0039",term:"delulu",pos:"adjective",definition:"Delusional, but cheerfully. Believing the pop star will notice your comment isn't a plan, it's this.",example:"He thinks his ex is coming back. Bless him, he's ___.",tags:["unrealistic","crazy","romance"],difficulty:4,pack:"core",nsfw:false,exact:["delulu","delulu is the solulu"],tiers:{hot:["delusional","deluded","in denial","dreaming","kidding yourself","unrealistic"],warm:["crazy","naive","optimistic","fantasising","lost the plot","wishful thinking"],cool:["simp","cope","stan","manifest"]}},
+{id:"dd-0040",term:"ick",pos:"noun",definition:"The sudden, irreversible turn-off caused by something tiny, like watching them run for a bus.",example:"He clapped when the plane landed. Instant ___.",tags:["disgust","romance"],difficulty:3,pack:"core",nsfw:false,exact:["ick","the ick","icks"],tiers:{hot:["turn off","red flag","put off","dealbreaker","gross out"],warm:["cringe","gross","yuck","disgust","eww","creeped out"],cool:["dating","crush","ghost","sick"]}},
+
+/* ----- MONEY PACK ----- */
+{id:"dd-0041",term:"minted",pos:"adjective",definition:"So rich you could buy the pub instead of a round. Mostly British, entirely envied.",example:"Her dad sold his app and now they're ___.",tags:["rich","money"],difficulty:4,pack:"money",nsfw:false,exact:["minted"],tiers:{hot:["loaded","rich","rolling in it","wealthy","flush","made of money","ballin"],warm:["comfortable","well off","posh","bougie","successful","cashed up"],cool:["broke","mint","money","bank"]}},
+{id:"dd-0042",term:"cheapskate",pos:"noun",definition:"Someone who'd split one chip three ways and still ask for change.",example:"He tipped 3p. Absolute ___.",tags:["stingy","money"],difficulty:2,pack:"money",nsfw:false,exact:["cheapskate","cheap skate","cheapskates"],tiers:{hot:["tightwad","miser","scrooge","penny pincher","stingy","skinflint","cheapo"],warm:["cheap","tight","frugal","thrifty","freeloader","moocher"],cool:["broke","money","bill","tip"]}},
+{id:"dd-0043",term:"side hustle",pos:"noun",definition:"The second job you insist is 'basically a business' because you sold four candles online.",example:"Accountant by day, dog-walking ___ by night.",tags:["money","work"],difficulty:3,pack:"money",nsfw:false,exact:["side hustle","sidehustle","side hustles"],tiers:{hot:["side gig","second job","side job","gig","moonlighting","side business"],warm:["hustle","freelance","grind","passive income","part time","sideline"],cool:["money","job","etsy","boss"]}},
+{id:"dd-0044",term:"make it rain",pos:"phrase",definition:"To throw cash around in a shower of notes, ideally in a music video rather than at the bank.",example:"Got his first pay cheque and tried to ___ in the club.",tags:["money","show-off","rich"],difficulty:4,pack:"money",nsfw:false,exact:["make it rain","making it rain","made it rain"],tiers:{hot:["throw money","splash out","splurge","blow cash","spend big","throw cash"],warm:["flex","bling","big spender","ballin","treat yourself","minted"],cool:["rain","weather","club","money"]}},
+
+/* ----- DRUNK PACK ----- */
+{id:"dd-0045",term:"beer goggles",pos:"noun",definition:"The magic lenses alcohol fits over your eyes, making everyone at 2am look like a film star.",example:"Thought he was gorgeous. Turns out it was the ___.",tags:["drunk","attractive"],difficulty:2,pack:"drunk",nsfw:false,exact:["beer goggles","beergoggles","beer goggle"],tiers:{hot:["drunk goggles","wine goggles","booze goggles","drunk vision","blurry vision"],warm:["drunk","tipsy","regret","last orders","wasted","drunk crush"],cool:["glasses","beer","pint","hangover"]}},
+{id:"dd-0046",term:"hair of the dog",pos:"phrase",definition:"Curing a hangover by drinking more of whatever caused it. Medically questionable, spiritually tradition.",example:"Rough morning? Have a little ___.",tags:["drunk","hangover","cure"],difficulty:5,pack:"drunk",nsfw:false,exact:["hair of the dog","hair o the dog","hair of dog"],tiers:{hot:["morning drink","hangover cure","bloody mary","eye opener","drink it off","livener"],warm:["hangover","mimosa","top up","recovery","brunch drink","another round"],cool:["dog","fur","hungover","pint"]}},
+{id:"dd-0047",term:"lightweight",pos:"noun",definition:"Someone who's tipsy after one cider and asleep in the taxi after two.",example:"She's a total ___, half a shandy and she's on the tables.",tags:["drunk","weak"],difficulty:3,pack:"drunk",nsfw:false,exact:["lightweight","light weight","lightweights"],tiers:{hot:["cheap drunk","cheap date","featherweight","low tolerance","two pint wonder"],warm:["tipsy","drunk","rookie","amateur","wimp","buzzed"],cool:["heavyweight","gym","boxing","pint"]}},
+{id:"dd-0048",term:"pissed",pos:"adjective",definition:"British: drunk. American: angry. Confusing when both apply in the same pub at once.",example:"We got absolutely ___ at the wedding.",tags:["drunk","angry"],difficulty:3,pack:"drunk",nsfw:true,exact:["pissed","pissed up","pisshead"],tiers:{hot:["drunk","hammered","wasted","plastered","smashed","legless","sloshed"],warm:["tipsy","merry","buzzed","steaming","trollied","battered"],cool:["angry","annoyed","mad","pub"]}},
+
+/* ----- INTERNET PACK ----- */
+{id:"dd-0049",term:"catfish",pos:"noun",definition:"Someone online pretending to be a completely different person, usually a far better-looking one.",example:"His profile said 25 and a pilot. Classic ___.",tags:["fake","internet","romance","lie"],difficulty:2,pack:"internet",nsfw:false,exact:["catfish","catfished","catfishing","catfisher"],tiers:{hot:["fake profile","impostor","fraud","scammer","faker","poser"],warm:["liar","fake","troll","bot","sus","scam"],cool:["fish","dating app","ghost","selfie"]}},
+{id:"dd-0050",term:"touch grass",pos:"phrase",definition:"Advice for someone who's been online too long: go outside and confirm the real world still exists.",example:"You've posted twelve times about a cereal brand. Go ___.",tags:["internet","outside","insult"],difficulty:4,pack:"internet",nsfw:false,exact:["touch grass","go touch grass","touching grass"],tiers:{hot:["go outside","log off","get a life","get some air","unplug","go for a walk"],warm:["chronically online","offline","take a break","detox","reality check","irl"],cool:["grass","park","internet","nature"]}},
+{id:"dd-0051",term:"doomscrolling",pos:"noun",definition:"Scrolling through bad news at 2am as if one more headline will finally fix the world.",example:"Couldn't sleep, so I spent three hours ___.",tags:["internet","anxious","phone"],difficulty:4,pack:"internet",nsfw:false,exact:["doomscrolling","doomscroll","doom scrolling","doom scroll","doomscrolled"],tiers:{hot:["endless scrolling","scrolling","doomsurfing","phone binge","screen binge"],warm:["rabbit hole","binge","online","insomnia","anxious","news"],cool:["phone","tiktok","scroll","doom"]}},
+
+/* ----- GYM PACK ----- */
+{id:"dd-0052",term:"swole",pos:"adjective",definition:"Massively muscly. The kind of big where T-shirts start filing complaints.",example:"He's been lifting every day and now he's ___.",tags:["gym","strong"],difficulty:3,pack:"gym",nsfw:false,exact:["swole","swoll"],tiers:{hot:["jacked","buff","ripped","hench","beefy","stacked","built","yoked"],warm:["muscly","strong","toned","huge","gains","fit"],cool:["gym","protein","weights","flex"]}},
+{id:"dd-0053",term:"leg day",pos:"noun",definition:"The workout everyone schedules and conveniently skips. Visible from a mile away on chicken-legged lifters.",example:"Huge arms, twig legs. Someone skipped ___.",tags:["gym","exercise"],difficulty:2,pack:"gym",nsfw:false,exact:["leg day","legday","leg days"],tiers:{hot:["squat day","lower body day","squats","lunges","legs"],warm:["workout","gym day","training","deadlifts","cardio","arm day"],cool:["chicken legs","gym","sore","rest day"]}},
+{id:"dd-0054",term:"gym rat",pos:"noun",definition:"Someone who basically lives at the gym. Knows the staff by name and the vending machine by heart.",example:"Five sessions a week? You're a proper ___.",tags:["gym","obsessed"],difficulty:3,pack:"gym",nsfw:false,exact:["gym rat","gymrat","gym rats"],tiers:{hot:["gym bro","gym junkie","fitness freak","meathead","gym addict","lifter"],warm:["bodybuilder","athlete","fitness fanatic","swole","jock","health nut"],cool:["rat","protein","treadmill","leg day"]}},
+
+/* ----- WORKPLACE PACK ----- */
+{id:"dd-0055",term:"circle back",pos:"phrase",definition:"Office-speak for 'I'm not dealing with this now and hope you forget about it.'",example:"Great question, let's ___ on that next week.",tags:["work","jargon","delay"],difficulty:5,pack:"workplace",nsfw:false,exact:["circle back","circling back","circled back"],tiers:{hot:["follow up","revisit","touch base","get back to you","park it","take it offline"],warm:["loop back","ping","sync","put a pin in it","table it","check in"],cool:["meeting","email","synergy","deadline"]}},
+{id:"dd-0056",term:"quiet quitting",pos:"noun",definition:"Doing exactly what your contract says and not one unpaid minute more.",example:"No emails after 5pm for six months. Full ___.",tags:["work","lazy"],difficulty:4,pack:"workplace",nsfw:false,exact:["quiet quitting","quiet quit","quietly quitting","quiet quitter"],tiers:{hot:["coasting","bare minimum","phoning it in","doing the minimum","clock watching","work to rule"],warm:["slacking","burnout","checked out","lazy","disengaged","skiving"],cool:["resign","quit","boss","job"]}},
+{id:"dd-0057",term:"Sunday scaries",pos:"noun",definition:"The creeping dread that turns up on Sunday afternoon as Monday starts loading.",example:"It's 4pm on Sunday and the ___ have kicked in.",tags:["work","anxious"],difficulty:4,pack:"workplace",nsfw:false,exact:["sunday scaries","sunday scary","the sunday scaries"],tiers:{hot:["sunday blues","sunday dread","sunday night dread","monday dread","case of the mondays"],warm:["anxiety","dread","blues","stress","mondays","burnout"],cool:["weekend","sunday","monday","work"]}},
+
+/* ----- 2000s PACK ----- */
+{id:"dd-0058",term:"bling",pos:"noun",definition:"Big, shiny, extremely loud jewellery. Subtlety sold separately.",example:"He turned up to a job interview dripping in ___.",tags:["jewellery","show-off","money"],difficulty:2,pack:"2000s",nsfw:false,exact:["bling","bling bling","blingy"],tiers:{hot:["ice","jewellery","jewelry","drip","chains","rocks","sparkle"],warm:["flex","flashy","swag","gold","diamonds","bougie"],cool:["money","rapper","watch","rich"]}},
+{id:"dd-0059",term:"noob",pos:"noun",definition:"A beginner, usually one who is extremely loud about not knowing what they're doing.",example:"He walked straight into the lava. Total ___.",tags:["beginner","internet"],difficulty:2,pack:"2000s",nsfw:false,exact:["noob","n00b","noobs","nub"],tiers:{hot:["newbie","newb","beginner","rookie","novice","scrub","amateur"],warm:["learner","fresher","clueless","green","lightweight","fresh meat"],cool:["gamer","pwned","pro","tutorial"]}},
+{id:"dd-0060",term:"YOLO",pos:"phrase",definition:"You only live once. The official motto of every bad decision made between 2011 and 2013.",example:"Booked a one-way flight to Lisbon at 3am. ___.",tags:["reckless","excited"],difficulty:1,pack:"2000s",nsfw:false,exact:["yolo","you only live once"],tiers:{hot:["carpe diem","seize the day","live a little","send it","full send","why not"],warm:["reckless","spontaneous","impulsive","wild","no regrets","fomo"],cool:["party","travel","tattoo","risk"]}},
+/* ----- PACK EXPANSION ----- */
+{id:"dd-0061",term:"bread",pos:"noun",definition:"Money. The kind you need to stop being broke, not the kind you put in a toaster.",example:"Can't come out, I need to get this ___ first.",tags:["money"],difficulty:3,pack:"money",nsfw:false,exact:["bread","the bread"],tiers:{hot:["money","cash","dough","guap","dosh","paper","moolah","bands"],warm:["wages","salary","pay","income","funds","coin"],cool:["toast","loaf","bakery","rich"]}},
+{id:"dd-0062",term:"ballin",pos:"adjective",definition:"Living large and spending like the bill is somebody else's problem.",example:"New car, new watch, first-class flights. He's ___.",tags:["rich","show-off","money"],difficulty:3,pack:"money",nsfw:false,exact:["ballin","balling","baller","ballers"],tiers:{hot:["rich","loaded","minted","flush","living large","rolling in it"],warm:["flexing","bougie","big spender","splurging","fancy","successful"],cool:["basketball","ball","money","bling"]}},
+{id:"dd-0063",term:"secure the bag",pos:"phrase",definition:"To lock in money or a big opportunity, ideally before anyone else gets a look in.",example:"Forget the holiday, I need to ___ first.",tags:["money","success"],difficulty:4,pack:"money",nsfw:false,exact:["secure the bag","securing the bag","secured the bag","get the bag","get that bag"],tiers:{hot:["get paid","make money","cash in","get the money","land the deal","get rich"],warm:["hustle","grind","side hustle","payday","win","get ahead"],cool:["bag","shopping","handbag","purse"]}},
+{id:"dd-0064",term:"pregame",pos:"verb",definition:"Drinking at home before going out, because bar prices are a crime against the young.",example:"Let's ___ at mine, then hit the club.",tags:["drunk","party"],difficulty:3,pack:"drunk",nsfw:false,exact:["pregame","pre game","pregaming","pres","predrinks","pre drinks"],tiers:{hot:["preload","warm up","prinks","predrink","pre lash"],warm:["drink","party","tipsy","buzzed","booze","night out"],cool:["game","sport","club","hangover"]}},
+{id:"dd-0065",term:"tipsy",pos:"adjective",definition:"One drink past sensible and one away from texting your ex. Giggly, warm, wildly overconfident.",example:"Two glasses of wine and she's already ___.",tags:["drunk"],difficulty:1,pack:"drunk",nsfw:false,exact:["tipsy"],tiers:{hot:["merry","buzzed","tiddly","squiffy","lightly drunk","happy"],warm:["drunk","lightweight","giggly","wasted","hammered","half cut"],cool:["hangover","wine","pub","sober"]}},
+{id:"dd-0066",term:"sesh",pos:"noun",definition:"A long drinking session that was meant to be one quick pint after work.",example:"It was a Tuesday, and somehow it turned into a full ___.",tags:["drunk","party"],difficulty:3,pack:"drunk",nsfw:false,exact:["sesh","seshes","on the sesh"],tiers:{hot:["session","bender","binge","all dayer","big night","piss up"],warm:["party","night out","pub crawl","drinks","rager","blowout"],cool:["hangover","gym session","meeting","pint"]}},
+{id:"dd-0067",term:"troll",pos:"noun",definition:"Someone who posts things purely to wind people up, then enjoys the chaos from their sofa.",example:"Don't reply to him, he's just a ___.",tags:["internet","insult"],difficulty:2,pack:"internet",nsfw:false,exact:["troll","trolls","trolling","trolled"],tiers:{hot:["stirrer","wind up merchant","provocateur","griefer","flamer","ragebaiter"],warm:["bully","hater","menace","edgelord","keyboard warrior","ragebait"],cool:["goblin","bridge","monster","internet"]}},
+{id:"dd-0068",term:"ratio",pos:"verb",definition:"When the replies to a post get more likes than the post. Public defeat, measured in numbers.",example:"He posted his hot take and got absolutely ___ed.",tags:["internet","insult","fail"],difficulty:4,pack:"internet",nsfw:false,exact:["ratio","ratioed","ratiod","ratioing"],tiers:{hot:["owned","dunked on","roasted","clowned","dragged","outvoted"],warm:["l","burned","cancelled","embarrassed","flopped","humiliated"],cool:["maths","fraction","likes","numbers"]}},
+{id:"dd-0069",term:"lurker",pos:"noun",definition:"Reads everything, posts nothing. Has seen every message in the group chat and replied to none.",example:"She's never posted once but knows everything. Classic ___.",tags:["internet","secret"],difficulty:3,pack:"internet",nsfw:false,exact:["lurker","lurkers","lurking","lurk"],tiers:{hot:["silent reader","watcher","observer","spectator","ghost reader"],warm:["stalker","creep","quiet one","introvert","ghost","follower"],cool:["troll","forum","spy","camera"]}},
+{id:"dd-0070",term:"gains",pos:"noun",definition:"The muscle you're building, or at least the muscle you're telling everyone you're building.",example:"Can't skip the gym, bro, got to protect my ___.",tags:["gym","strong","improve"],difficulty:2,pack:"gym",nsfw:false,exact:["gains","gainz"],tiers:{hot:["muscle","progress","size","mass","results","bulk"],warm:["swole","pump","strength","jacked","shredded","pb"],cool:["protein","weights","gym","money"]}},
+{id:"dd-0071",term:"bulking",pos:"verb",definition:"Eating an industrial quantity of food and calling it training.",example:"Third burrito of the day? Relax, I'm ___.",tags:["gym","food"],difficulty:3,pack:"gym",nsfw:false,exact:["bulking","bulk","bulked","bulk season"],tiers:{hot:["mass gaining","dirty bulk","eating big","eating for gains","putting on size"],warm:["gains","overeating","protein","cheat day","carb loading","feasting"],cool:["cutting","diet","gym","shopping"]}},
+{id:"dd-0072",term:"shredded",pos:"adjective",definition:"So lean every muscle looks like it was drawn on with a ruler.",example:"Twelve weeks of chicken and rice and now he's ___.",tags:["gym","strong","attractive"],difficulty:3,pack:"gym",nsfw:false,exact:["shredded","shred","shreds"],tiers:{hot:["ripped","cut","lean","chiselled","jacked","defined"],warm:["toned","fit","swole","buff","abs","six pack"],cool:["cheese","paper","guitar","gym"]}},
+{id:"dd-0073",term:"synergy",pos:"noun",definition:"A word managers say when they want two teams to do one team's job.",example:"This merger is all about ___, apparently.",tags:["work","jargon"],difficulty:4,pack:"workplace",nsfw:false,exact:["synergy","synergies","synergise","synergize"],tiers:{hot:["collaboration","teamwork","alignment","working together","cooperation"],warm:["buzzword","jargon","value add","leverage","partnership","integration"],cool:["meeting","merger","energy","office"]}},
+{id:"dd-0074",term:"WFH",pos:"phrase",definition:"Working from home, which mostly means working from bed with the camera off.",example:"Can't do Thursday, I'm ___ and the Wi-Fi hates me.",tags:["work","relax"],difficulty:2,pack:"workplace",nsfw:false,exact:["wfh","work from home","working from home","worked from home"],tiers:{hot:["remote working","remote","home working","telecommuting","hybrid"],warm:["zoom","camera off","laptop","pyjamas","home office","flexible working"],cool:["office","commute","sick day","holiday"]}},
+{id:"dd-0075",term:"burnout",pos:"noun",definition:"When work has used up every last drop of you and your inbox still wants more.",example:"Six months of overtime and now it's full ___.",tags:["work","tired"],difficulty:3,pack:"workplace",nsfw:false,exact:["burnout","burn out","burnt out","burned out"],tiers:{hot:["exhaustion","overworked","frazzled","running on empty","fried","drained"],warm:["stress","tired","knackered","quiet quitting","breakdown","sunday scaries"],cool:["fire","holiday","sick day","candle"]}},
+{id:"dd-0076",term:"pwned",pos:"adjective",definition:"Gamer spelling for completely beaten. The typo became the whole point.",example:"He jumped in solo and got absolutely ___.",tags:["fail","internet","insult"],difficulty:3,pack:"2000s",nsfw:false,exact:["pwned","pwn","pwnd","pwnage","pwning"],tiers:{hot:["owned","rekt","wrecked","destroyed","beaten","smoked"],warm:["noob","l","defeated","crushed","ratioed","gg"],cool:["gamer","lag","typo","console"]}},
+{id:"dd-0077",term:"totes",pos:"adverb",definition:"Totally, shortened by people far too busy to finish their words.",example:"Party at mine Friday? ___ coming.",tags:["agree","truth"],difficulty:2,pack:"2000s",nsfw:false,exact:["totes","totes obvi","totes amaze"],tiers:{hot:["totally","definitely","absolutely","for sure","completely","obviously"],warm:["yes","literally","def","defo","100","so"],cool:["bag","tote bag","maybe","never"]}},
+{id:"dd-0078",term:"da bomb",pos:"phrase",definition:"The absolute best. A compliment from the era of frosted tips and flip phones.",example:"This mixtape is ___, trust me.",tags:["best","cool","good"],difficulty:3,pack:"2000s",nsfw:false,exact:["da bomb","the bomb","da bom","tha bomb"],tiers:{hot:["the best","awesome","amazing","the business","epic","wicked"],warm:["cool","dope","fire","sick","rad","ace"],cool:["explosion","bomb","boom","mixtape"]}}
+];
+
+/* =====================================================================
+   LEXICON — common slang mapped to the shared tag vocabulary.
+   Used only by the heuristic fallback (scoring layer 2).
+   Format: "tag tag|term,term,term" lines, expanded at load.
+   ===================================================================== */
+const LEXICON_SRC = [
+"drunk|wasted,plastered,smashed,trashed,sloshed,legless,battered,drunk,tipsy,buzzed,merry,steaming,trollied,blotto,sozzled,tanked,blitzed,crunk,tiddly,half cut,paralytic,sauced,boozed,liquored up,schwasted,pickled,mullered,wrecked,three sheets to the wind,blind drunk,inebriated,intoxicated,hammered,pissed,lit,turnt,faded",
+"party|rave,club,pregame,pres,predrinks,sesh,bender,rager,function,kickback,turn up,afterparty,night out,pub crawl,bar crawl,house party,lit,turnt",
+"drunk hangover|hungover,hanging,fragile,hair of the dog,the fear",
+"money rich|loaded,minted,ballin,baller,rolling in it,flush,made of money,high roller,wealthy,rich,well off,cashed up,stacked",
+"money|bands,racks,bread,guap,dough,moolah,cheddar,paper,coin,cash,quid,dosh,wonga,readies,big bucks,secure the bag,bag,side hustle,make it rain,splash out,splurge,payday",
+"money poor|broke,skint,brassic,strapped,cash strapped,penniless,bankrupt,poor,struggling,overdrawn,potless,brokey",
+"money stingy|tight,tightwad,cheapskate,stingy,miser,scrooge,penny pincher,skinflint,cheap,cheapo,frugal,thrifty",
+"show-off|flex,flexing,stunt,stunting,floss,brag,boast,show off,poser,humblebrag,clout,clout chaser,peacock,swagger,swag",
+"show-off jewellery|bling,ice,iced out,drip,chains,rocks,diamonds,grills",
+"fancy rich|bougie,boujee,posh,fancy,swanky,classy,upscale,ritzy,la di da,high maintenance,snob,snobby,pretentious,luxe,extra",
+"attractive|hot,peng,fit,snack,smoking,stunning,gorgeous,cute,hottie,babe,dime,bombshell,fine,snatched,glowing,good looking,beautiful,handsome,buff",
+"ugly|butters,minging,busted,hideous,grim,rough",
+"lazy|lazy,couch potato,slacker,bum,skiver,skiving,coasting,lazybones,sloth,layabout,phoning it in,bare minimum,slacking,quiet quitting",
+"tired|tired,knackered,shattered,zonked,wiped,exhausted,cream crackered,pooped,drained,burnt out,burnout,sleepy,eepy,running on empty",
+"impressed|wow,sick,fire,epic,legend,iconic,goat,slay,mind blown,insane,unreal,banging,bangin,wicked,top tier,elite,based,big w,chefs kiss,banger,valid,amazing,awesome,incredible",
+"cool|cool,dope,fly,fresh,rad,tight,sick,swag,legit,wicked,ace,boss,badass,lit,fire,hype,hip,trendy,groovy,vibe,chill",
+"good|good,great,solid,decent,sound,safe,bussin,slaps,hits different,fab,bomb,da bomb,the bomb,mint,nice,sweet",
+"bad|trash,garbage,wack,whack,lame,rubbish,naff,pants,dire,crap,dog water,cheeks,terrible,awful",
+"average|mid,meh,so so,average,mediocre,alright,okay,middling,bang average,fine",
+"boring|boring,dull,basic,lame,vanilla,snooze,snoozefest,beige,dry,bland,normie,mainstream,generic",
+"fake lie|fake,phony,poser,fraud,catfish,plastic,two faced,snake,cap,capping,fugazi,knockoff,bootleg,sellout,lie,fib,porkies,lying,bs,tall tale,made up,liar",
+"truth|no cap,deadass,for real,fr,frfr,on god,real talk,facts,true,legit,swear,i swear,word,no lie,honestly,literally,ong,seriously",
+"suspicious|sus,shady,sketchy,dodgy,fishy,iffy,suss,sketch,dubious,sneaky,sly,slippery,suspicious",
+"angry|mad,pressed,heated,fuming,livid,triggered,tilted,raging,vexed,riled,peeved,ticked off,mardy,narky,cross,cranky,grumpy,snappy,irritable,angry,furious,annoyed",
+"bitter|salty,bitter,sour,petty,jealous,envious,hater,sore loser,sore",
+"sad|sad,down,blue,gutted,bummed,low,in my feels,emo,mopey,devo,devastated,heartbroken,crushed,sulking,sulky,moody",
+"happy excited|stoked,buzzing,chuffed,hyped,pumped,thrilled,made up,over the moon,giddy,vibing,living,amped,gassed,psyched,fired up,keen,lets go,hype",
+"scared|spooked,scared,shaking,bricking it,terrified,freaked out,creeped out,nervous,jumpy,shook",
+"surprised|shook,shocked,stunned,gobsmacked,speechless,floored,flabbergasted,mind blown,jaw drop,dumbstruck,wtf,omg,no way,plot twist,rattled",
+"anxious|anxious,stressed,on edge,fomo,panicking,overthinking,wired,jittery,dread,sunday scaries,doomscrolling,the fear",
+"embarrassing|cringe,cringey,cringy,awkward,yikes,oof,second hand embarrassment,mortified,embarrassing,red faced,cheesy,corny,try hard,tryhard",
+"gossip|tea,spill the tea,goss,gossip,dirt,scoop,juice,receipts,drama,messy,scandal,rumour,rumor,chinwag,hearsay,the lowdown,lowdown",
+"insult|shade,diss,dig,burn,roast,read,jab,clapback,comeback,sick burn,own,owned,savage,snark,snide,mug off,mugged off,side eye,ratio,ratioed",
+"conflict|beef,feud,grudge,drama,row,scrap,fight,rivalry,bad blood,smoke,square up,kick off,aggro,bust up,war,clapback",
+"romance|bae,boo,crush,situationship,talking stage,rizz,flirt,flirting,game,pull,pulled,mack,wifey,hubby,other half,partner,date,dating,ex,red flag,green flag,love bombing,breadcrumbing,cuffing season,wingman,friendzone,lovesick,whipped,smitten,swipe,shoot your shot,catch feelings",
+"love|love,adore,babe,sweetheart,darling,honey",
+"friend|bestie,bff,bro,fam,homie,mate,pal,bruv,bredrin,squad,crew,day ones,ride or die,buddy,dude,gang",
+"ignore|ghost,ghosting,ghosted,blank,blanked,aired,left on read,leave on read,ignore,curve,curved,block,blocked,mute,unfollow,cold shoulder,snub",
+"leave cancel|bail,dip,bounce,ditch,flake,flaky,peace out,dipped,head out,cancel,rain check,no show,back out,cop out,bow out,split",
+"agree|bet,say less,word,facts,deal,sounds good,for sure,aight,ok,okay,yes,yep,yeah,sure,kk,gotcha,same,mood,big mood,period,periodt,preach,valid",
+"relax calm|chill,chill out,chillin,kick back,hang out,unwind,vibing,cotch,lounge,lay low,mellow,laid back,easy going,zen,relax",
+"crazy|crazy,wild,unhinged,bonkers,nuts,loco,wilding,wildin,off the rails,feral,deranged,lost the plot,mad",
+"unrealistic|delulu,delusional,dreaming,in denial,cope,copium,manifesting,wishful thinking",
+"dumb|dumb,stupid,airhead,dense,thick,dim,clueless,brain fart,npc,smooth brain,numpty,muppet,plonker,wally,doughnut,melt,wasteman",
+"smart|big brain,galaxy brain,genius,brainiac,smart,clever,sharp,nerd,boffin,egghead",
+"success|kill it,crushed it,smashed it,nailed it,aced,w,dub,win,came through,ate,ate that,serve,served,level up,gg,slay",
+"fail|l,fail,epic fail,flop,flopped,took an l,fumble,fumbled,choke,choked,bottle,bottled,crash and burn,rekt,pwned,owned",
+"internet|online,lurker,troll,meme,viral,doomscrolling,chronically online,touch grass,tldr,dm,slide into dms,influencer,fandom,irl,afk,brb,lol,lmao,smh,ngl,tbh,imo,go viral,subtweet,main character,npc",
+"gym strong|swole,jacked,ripped,buff,hench,beefy,built,yoked,shredded,gains,pump,muscly,strong",
+"gym|leg day,gym bro,gym rat,meathead,lifter,bulk,bulking,cutting,pb,pr,reps,cardio,protein,squats,deadlifts,workout,gains",
+"work|nine to five,grind,hustle,wfh,boss,eod,asap,ooo,deadline,overtime,promo,side gig,day job,office",
+"work jargon|synergy,circle back,touch base,deep dive,bandwidth,low hanging fruit,move the needle,ping,loop in,take it offline,park it,put a pin in it,value add,leverage,paradigm shift,game changer,follow up",
+"food|bussin,slaps,scran,grub,munch,munchies,snack,nosh,tasty,yummy,scrummy,delish,nom,delicious,scrumptious,moreish",
+"hungry|peckish,starving,hangry,ravenous,famished,hungry",
+"reckless excited|yolo,send it,full send,carpe diem,reckless,spontaneous,impulsive,no regrets,live a little",
+"beginner|noob,newb,newbie,n00b,rookie,novice,scrub,amateur,beginner,fresher",
+"mood|vibe,vibes,energy,aura,atmosphere,aesthetic,ambience",
+"secret|lowkey,low key,on the down low,on the dl,hush hush,kinda,sort of,quietly,secretly",
+"fan obsessed|stan,superfan,fan,fangirl,fanboy,groupie,die hard,obsessed,devoted,fanatic",
+"desperate|desperate,needy,clingy,pick me,attention seeker,simp,doormat,pushover",
+"dramatic|over the top,ott,too much,a lot,dramatic,drama queen,theatrical,diva,extra",
+"charm|charisma,chat,smooth,suave,charming,smooth talker,rizz",
+"disgust|ick,gross,yuck,eww,ew,nasty,rank,minging,turnoff,turn off,dealbreaker,the ick",
+"outside|go outside,log off,offline,get a life,unplug,irl",
+"throw|yeet,chuck,lob,launch,hurl,fling,toss,bin",
+"best|goat,legend,icon,king,queen,mvp,the best,champ,number one,top tier",
+"timing helpful|clutch,lifesaver,in the nick of time,just in time,hero,came through",
+"improve|glow up,level up,makeover,upgrade,transformation,new me,revamp,come up",
+"mainstream|basic,normie,mainstream,generic,sheep",
+"weak|lightweight,wimp,soft,weak,wuss",
+"delay|rain check,later,procrastinate,table it,put a pin in it,park it",
+"exercise|workout,squats,lifting,lift,training,cardio"
+];
+
+/* LEXICON is expanded from LEXICON_SRC: term → Set of tags */
+const LEXICON = (() => {
+  const m = new Map();
+  for (const line of LEXICON_SRC) {
+    const [tags, words] = line.split('|');
+    const ts = tags.split(' ');
+    for (const w of words.split(',')) {
+      const k = norm(w);
+      if (!k) continue;
+      if (!m.has(k)) m.set(k, new Set());
+      ts.forEach(t => m.get(k).add(t));
+    }
+  }
+  return m;
+})();
+
+/* =====================================================================
+   SCORING  — pure: no DOM, no storage, no clock.
+   scoreGuess(guess, puzzle) → { score, depth, zone, zoneIndex, label, reason, solved, exact, corrected }
+   ===================================================================== */
+const STOP = new Set(('a an the and or but of to in on at for with is it its be are was were you your i im me my we our they them their he she his her ' +
+  'this that so too very just like as by from up out about into over than then when what who how not no do does did have has had get got can will would one some any all more most much really still even only also if because off down back after before while being been s t now isnt dont whole same').split(' '));
+const BANDS = { exact: [100, 100], hot: [80, 95], warm: [50, 75], cool: [20, 45] };
+const TIER_LABEL = { hot: 'Same meaning, different word.', warm: 'Right neighbourhood.', cool: 'Right world, wrong meaning.' };
+const FLAVOUR = [
+  'That is not slang, that is a sneeze.', 'The definition has never met that word.', 'Bold. Wrong, but bold.',
+  'You are still in the shallows.', 'Not even in the same dictionary.', 'The fish are confused.',
+  'Splash. Nothing happened.', 'A brave guess that changed nothing.'
+];
+
+function norm(s) {
+  return String(s == null ? '' : s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '');
+}
+function tokens(s) {
+  return String(s == null ? '' : s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(Boolean);
+}
+function stem(w) {
+  if (w.length > 5 && w.endsWith('ing')) return w.slice(0, -3);
+  if (w.length > 4 && w.endsWith('ed')) return w.slice(0, -2);
+  if (w.length > 3 && w.endsWith('s') && !w.endsWith('ss')) return w.slice(0, -1);
+  return w;
+}
+function fnv(str) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+  return h >>> 0;
+}
+/* optimal string alignment distance: insert, delete, substitute, swap neighbours */
+function osa(a, b) {
+  const m = a.length, n = b.length;
+  if (!m) return n; if (!n) return m;
+  const d = [];
+  for (let i = 0; i <= m; i++) d[i] = [i];
+  for (let j = 0; j <= n; j++) d[0][j] = j;
+  for (let i = 1; i <= m; i++) for (let j = 1; j <= n; j++) {
+    const c = a[i - 1] === b[j - 1] ? 0 : 1;
+    d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + c);
+    if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+  }
+  return d[m][n];
+}
+function zoneIndexFor(score) {
+  const s = Math.max(0, Math.min(100, Math.round(score)));
+  return CONFIG.ZONES.findIndex(z => s >= z.min && s <= z.max);
+}
+function scoreToDepth(score) {
+  const s = Math.max(0, Math.min(100, Math.round(score)));
+  const z = CONFIG.ZONES[zoneIndexFor(s)];
+  if (z.min === z.max) return z.d1;
+  return Math.round(z.d0 + (s - z.min) / (z.max - z.min + 1) * (z.d1 - z.d0));
+}
+/* entries may carry their own number as "word:88" */
+function parseEntry(e) {
+  const m = /^(.*?):(\d{1,3})$/.exec(e);
+  return m ? { text: m[1], own: +m[2] } : { text: e, own: null };
+}
+const INDEX = new Map();
+function indexFor(p) {
+  if (INDEX.has(p.id)) return INDEX.get(p.id);
+  const map = new Map();
+  for (const e of p.exact) map.set(norm(e), { tier: 'exact', score: 100, text: e });
+  for (const tier of ['hot', 'warm', 'cool']) {
+    const list = (p.tiers[tier] || []).map(parseEntry), [lo, hi] = BANDS[tier], n = list.length;
+    list.forEach((en, i) => {
+      const k = norm(en.text);
+      if (!k || map.has(k)) return;
+      const score = en.own != null ? Math.max(lo, Math.min(hi, en.own)) : (n === 1 ? hi : Math.round(hi - i * (hi - lo) / (n - 1)));
+      map.set(k, { tier, score, text: en.text });
+    });
+  }
+  const defWords = new Set(tokens(p.definition).filter(w => w.length > 2 && !STOP.has(w)).map(stem));
+  const idx = { map, defWords, exactKeys: p.exact.map(norm) };
+  INDEX.set(p.id, idx);
+  return idx;
+}
+/* words we know are real, so autocorrect must leave them alone */
+const KNOWN = (() => {
+  const s = new Set(LEXICON.keys());
+  for (const p of PUZZLES) {
+    s.add(norm(p.term)); p.exact.forEach(e => s.add(norm(e)));
+    for (const t of ['hot', 'warm', 'cool']) (p.tiers[t] || []).forEach(e => s.add(norm(parseEntry(e).text)));
+  }
+  return s;
+})();
+const GUESS_TAGS = (() => {
+  const m = new Map();
+  const add = (k, tags) => { if (!k) return; if (!m.has(k)) m.set(k, new Set()); tags.forEach(t => m.get(k).add(t)); };
+  for (const [k, set] of LEXICON) add(k, set);
+  for (const p of PUZZLES) {
+    add(norm(p.term), p.tags); p.exact.forEach(e => add(norm(e), p.tags));
+    ['hot', 'warm'].forEach(t => (p.tiers[t] || []).forEach(e => add(norm(parseEntry(e).text), p.tags)));
+  }
+  return m;
+})();
+
+/* Autocorrect, deliberately stingy:
+   - never touches a word we already know is real
+   - target must be 5+ characters and share the first letter
+   - 1 edit for targets up to 8 characters, 2 edits for 9+
+   - a corrected answer solves the puzzle but lands at 92, never the Slanger, and earns no bonus */
+function autocorrect(g, idx) {
+  if (g.length < 4 || KNOWN.has(g)) return null;
+  let best = null;
+  for (const [k, v] of idx.map) {
+    if (k.length < 5 || k[0] !== g[0]) continue;
+    const allow = k.length >= 9 ? 2 : 1;
+    if (Math.abs(k.length - g.length) > allow) continue;
+    const d = osa(g, k);
+    if (d === 0 || d > allow) continue;
+    const rank = (v.tier === 'exact' ? 0 : 10) + d * 2 + (100 - v.score) / 100;
+    if (!best || rank < best.rank) best = Object.assign({ rank, d, key: k }, v);
+  }
+  return best;
+}
+function result(score, o) {
+  const zi = zoneIndexFor(score);
+  return { score, depth: scoreToDepth(score), zone: CONFIG.ZONES[zi].name, zoneIndex: zi, label: o.label, reason: o.reason, solved: !!o.solved, exact: !!o.exact, corrected: o.corrected || null };
+}
+function scoreGuess(guess, puzzle) {
+  const g = norm(guess);
+  const idx = indexFor(puzzle);
+  if (!g) return result(0, { label: 'Nothing to dive with.', reason: 'empty' });
+  const hit = idx.map.get(g);
+  if (hit) {
+    if (hit.tier === 'exact') return result(100, { label: 'Bang on.', reason: 'exact', solved: true, exact: true });
+    return result(hit.score, { label: TIER_LABEL[hit.tier], reason: 'tier:' + hit.tier });
+  }
+  const ac = autocorrect(g, idx);
+  if (ac) {
+    if (ac.tier === 'exact') return result(CONFIG.AUTOCORRECT_SCORE, { label: 'Autocorrected to “' + ac.text + '”. Counts, but typos don’t reach the bottom.', reason: 'autocorrect:exact', solved: true, corrected: ac.text });
+    return result(Math.max(15, ac.score - 10), { label: 'Autocorrected to “' + ac.text + '”, minus a little for the typo. ' + TIER_LABEL[ac.tier], reason: 'autocorrect:' + ac.tier, corrected: ac.text });
+  }
+  const toks = tokens(guess);
+  if (toks.length > 1) {
+    for (let i = 0; i < toks.length; i++) for (let j = i + 1; j <= toks.length; j++) {
+      if ((j - i) < toks.length && idx.exactKeys.includes(toks.slice(i, j).join(''))) return result(88, { label: 'The answer is in there somewhere. Lose the extra words.', reason: 'phrase' });
+    }
+  }
+  const content = toks.filter(w => !STOP.has(w) && w.length > 2);
+  let tagScore = 0, contentScore = 0, partial = 0, spell = 0;
+  const gtags = new Set();
+  const addTags = k => { const s = GUESS_TAGS.get(k); if (s) s.forEach(t => gtags.add(t)); };
+  addTags(g); toks.forEach(t => addTags(norm(t)));
+  if (gtags.size) {
+    const overlap = puzzle.tags.filter(t => gtags.has(t)).length;
+    if (overlap) tagScore = Math.round(30 + 30 * overlap / Math.min(puzzle.tags.length, gtags.size));
+  }
+  if (content.length) {
+    const matched = content.filter(w => idx.defWords.has(stem(w))).length;
+    if (matched) contentScore = Math.min(40, Math.round(20 + 20 * matched / content.length));
+  }
+  if (toks.length > 1) toks.forEach(t => { const h = idx.map.get(norm(t)); if (h && h.tier !== 'exact') partial = Math.max(partial, Math.round(h.score * 0.7)); });
+  if (!KNOWN.has(g)) for (const k of idx.exactKeys) { const d = osa(g, k); if (d > 0 && (d <= 1 || d / Math.max(k.length, g.length) <= 0.25)) spell = 55; }
+  let best = Math.max(tagScore, contentScore, partial, spell);
+  if (tagScore && contentScore) best += 5;
+  best = Math.min(70, best);
+  if (best > 0) {
+    let label = 'Same vibe, different word.';
+    if (best === spell && spell >= tagScore) label = 'So close it hurts. Check the spelling — autocorrect won’t save this one.';
+    else if (best === partial && partial > tagScore) label = 'Part of that lands.';
+    else if (contentScore > tagScore) label = 'You found a word from the definition. Bit literal.';
+    return result(best, { label, reason: 'fallback' });
+  }
+  const hh = fnv(g);
+  return result(5 + (hh % 11), { label: FLAVOUR[hh % FLAVOUR.length], reason: 'fallback:miss' });
+}
+function isBlocked(text) {
+  const leet = { '0': 'o', '1': 'i', '3': 'e', '4': 'a', '5': 's', '7': 't', '@': 'a', '$': 's', '!': 'i' };
+  const canon = s => s.toLowerCase().replace(/[013457@$!]/g, c => leet[c]).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z]/g, '').replace(/(.)\1{2,}/g, '$1$1');
+  const parts = [canon(text)].concat(String(text).split(/\s+/).map(canon));
+  return parts.some(p => p && (CONFIG.BLOCK.includes(fnv(p)) || (p.length > 3 && p.endsWith('s') && CONFIG.BLOCK.includes(fnv(p.slice(0, -1))))));
+}
+
+/* ---------- daily seeding ---------- */
+function mulberry32(a) {
+  return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+}
+function seededPerm(n, seed) {
+  const r = mulberry32(seed), a = Array.from({ length: n }, (_, i) => i);
+  for (let i = n - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+function dayNumber(dateStr) { const [y, m, d] = dateStr.split('-').map(Number); return Math.floor(Date.UTC(y, m - 1, d) / 864e5); }
+function weekdayOf(n) { return (n + 3) % 7; } // Monday = 0
+function slotTargets(w) { return Array.from({ length: CONFIG.PER_DAY }, (_, i) => Math.max(1, Math.min(5, Math.round(1 + i / 3 + w / 3)))); }
+function diveNumber(dateStr) { return dayNumber(dateStr) - dayNumber(CONFIG.EPOCH) + 1; }
+/* Same seven for everyone on a date (per content-filter setting). Difficulty climbs within each dive and Monday→Sunday.
+   Each difficulty bucket is walked in a fixed shuffled order so puzzles don't repeat until the bucket runs out. */
+function dailyPuzzles(dateStr, filterOn) {
+  const pool = PUZZLES.filter(p => !(filterOn && p.nsfw)).slice().sort((a, b) => a.id < b.id ? -1 : 1);
+  const buckets = { 1: [], 2: [], 3: [], 4: [], 5: [] };
+  pool.forEach(p => buckets[Math.max(1, Math.min(5, p.difficulty))].push(p));
+  const bucketFor = t => { for (let r = 0; r < 5; r++) { if (buckets[t - r] && buckets[t - r].length) return t - r; if (buckets[t + r] && buckets[t + r].length) return t + r; } return 1; };
+  const n = dayNumber(dateStr), salt = fnv(CONFIG.NAME + (filterOn ? ':clean' : ':all'));
+  const weekly = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+  for (let w = 0; w < 7; w++) slotTargets(w).forEach(t => weekly[bucketFor(t)]++);
+  const cum = {}, weeks = Math.floor(n / 7);
+  for (const b in weekly) cum[b] = weeks * weekly[b];
+  for (let k = weeks * 7; k < n; k++) slotTargets(weekdayOf(k)).forEach(t => cum[bucketFor(t)]++);
+  const used = new Set(), out = [], today = {};
+  for (const t of slotTargets(weekdayOf(n))) {
+    const b = bucketFor(t), arr = buckets[b];
+    const k = cum[b] + (today[b] || 0); today[b] = (today[b] || 0) + 1;
+    let pick = null;
+    for (let tries = 0; tries < arr.length * 2 && !pick; tries++) {
+      const kk = k + tries, cyc = Math.floor(kk / arr.length);
+      const p = arr[seededPerm(arr.length, (salt ^ fnv(b + ':' + cyc)) >>> 0)[kk % arr.length]];
+      if (!used.has(p.id)) pick = p;
+    }
+    if (!pick) pick = pool.find(p => !used.has(p.id));
+    used.add(pick.id); out.push(pick);
+  }
+  return out.sort((a, b) => a.difficulty - b.difficulty).map(p => p.id);
+}
+
+/* ---------- round arithmetic ---------- */
+function hintCost(keys) { return keys.reduce((s, k) => s + (CONFIG.HINTS.find(h => h.key === k) || { cost: 0 }).cost, 0); }
+function roundFinal(r, plain) {
+  if (plain) return { pen: 0, bonus: 0, tb: 0, final: r.bestDepth };
+  const pen = hintCost(r.h);
+  const clean = r.solved && !r.ac;
+  const bonus = clean ? (CONFIG.MAX_GUESSES - r.g.length) * CONFIG.BONUS_PER_SPARE_GUESS : 0;
+  const tb = clean && r.tl > 0 ? Math.ceil(r.tl / 1000) * CONFIG.TIME_BONUS_PER_SEC : 0;
+  let final = Math.max(0, r.bestDepth - pen) + bonus + tb;
+  if (r.h.length) final = Math.min(final, CONFIG.HINT_CAP);
+  return { pen, bonus, tb, final };
+}
+function shareText(run) {
+  const rows = run.rounds.map(r => {
+    let s = r.g.map((g, i) => {
+      if (g.s === 100) return r.slanger ? '🎯✨' : '🎯';
+      if (r.ac && i === r.g.length - 1) return '✏️';
+      return CONFIG.ZONES[g.z].emoji;
+    }).join('');
+    if (r.out === 'time') s += '⌛';
+    if (r.h.length) s += '💡';
+    return s || '⬛';
+  });
+  return CONFIG.NAME + ' #' + run.no + ' · ' + fmtM(run.total) + '\n' + rows.join('\n') + '\n' + CONFIG.SHARE_URL;
+}
+function fmtM(n) { return Math.round(n).toLocaleString('en-GB') + 'm'; }
+function mss(ms) { const s = Math.ceil(Math.max(0, ms) / 1000); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
+function peekPattern(term) { let i = 0; return [...term].map(ch => /[a-z0-9]/i.test(ch) ? (i++ % 2 === 0 ? ch.toLowerCase() : '_') : ch).join(''); }
+function lengthHint(term) { const w = term.trim().split(/\s+/).map(x => x.replace(/[^a-z0-9]/gi, '').length); return w.length === 1 ? w[0] + ' letters' : w.length + ' words: ' + w.join(' + '); }
+function hintText(key, p) {
+  if (key === 'letter') return 'Starts with “' + p.term.trim()[0].toUpperCase() + '”';
+  if (key === 'length') return lengthHint(p.term);
+  if (key === 'pos') return p.pos;
+  if (key === 'peek') return peekPattern(p.term);
+  return '';
+}
+
+/* =====================================================================
+   STATE AND STORAGE — one versioned key, every access in try/catch.
+   ===================================================================== */
+function freshModes() {
+  return {
+    endless: { best: 0, played: 0, words: 0, run: null, last: null },
+    packs: { run: null, best: {}, played: {} },
+    speed: { best: 0, played: 0, run: null },
+    reverse: { best: 0, played: 0 },
+    party: { played: 0, run: null, last: null }
+  };
+}
+function freshState() {
+  return {
+    v: CONFIG.SCHEMA,
+    settings: { filter: true, reducedMotion: false, highContrast: false, sound: true },
+    streak: { cur: 0, max: 0, last: null },
+    stats: { played: 0, wins: 0, totalDepth: 0, slangers: 0, words: 0, hist: [0, 0, 0, 0, 0, 0, 0] },
+    runs: {},
+    modes: freshModes()
+  };
+}
+/* MIGRATIONS[n] turns a version-n object into version n+1. Never drop streaks or runs. */
+const MIGRATIONS = {
+  0: o => ({ v: 1, settings: o.settings || {}, streak: o.streak || {}, stats: o.stats || {}, runs: o.runs || {} }),
+  1: o => { o.settings = o.settings || {}; o.settings.sound = true; o.modes = freshModes(); return o; }
+};
+function migrate(o) {
+  const out = freshState();
+  if (!o || typeof o !== 'object') return out;
+  let v = +o.v || 0;
+  while (v < CONFIG.SCHEMA) { o = (MIGRATIONS[v] || (x => x))(o); v++; o.v = v; }
+  Object.assign(out.settings, o.settings || {});
+  Object.assign(out.streak, o.streak || {});
+  Object.assign(out.stats, o.stats || {});
+  if (!Array.isArray(out.stats.hist) || out.stats.hist.length !== 7) out.stats.hist = [0, 0, 0, 0, 0, 0, 0];
+  out.runs = (o.runs && typeof o.runs === 'object') ? o.runs : {};
+  const fm = freshModes(), om = o.modes || {};
+  for (const k in fm) out.modes[k] = Object.assign(fm[k], om[k] || {});
+  return out;
+}
+let S = freshState();
+let storageOK = false;
+function load() {
+  try {
+    const ls = window.localStorage;
+    let raw = ls.getItem(CONFIG.STORE_KEY);
+    if (!raw) for (const k of CONFIG.LEGACY_KEYS) { raw = ls.getItem(k); if (raw) break; }
+    S = migrate(raw ? JSON.parse(raw) : null);
+    ls.setItem(CONFIG.STORE_KEY, JSON.stringify(S));
+    storageOK = true;
+  } catch (e) { storageOK = false; }
+}
+function save() {
+  if (!storageOK) return;
+  try { window.localStorage.setItem(CONFIG.STORE_KEY, JSON.stringify(S)); } catch (e) { storageOK = false; }
+}
+let DATE_OVERRIDE = null;
+function todayStr() { const d = DATE_OVERRIDE ? new Date(DATE_OVERRIDE + 'T12:00:00Z') : new Date(); return d.toISOString().slice(0, 10); }
+function shiftDay(ds, k) { const d = new Date(ds + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + k); return d.toISOString().slice(0, 10); }
+function msToUtcMidnight() { const n = new Date(); return Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate() + 1) - n.getTime(); }
+const byId = id => PUZZLES.find(p => p.id === id);
+function newRound() { return { g: [], h: [], done: false, solved: false, ac: false, slanger: false, best: 0, bestDepth: 0, final: 0, pen: 0, bonus: 0, tb: 0, tl: CONFIG.WORD_MS, out: null }; }
+function sumFinals(run) { return run.rounds.reduce((s, r) => s + (r.done ? r.final : 0), 0); }
+function getDayRun(date) {
+  let run = S.runs[date];
+  if (!run || !Array.isArray(run.ids) || run.ids.some(id => !byId(id))) {
+    const ids = dailyPuzzles(date, S.settings.filter);
+    run = { date, no: diveNumber(date), ids, i: 0, rounds: ids.map(newRound), done: false, total: 0 };
+    S.runs[date] = run; save();
+  }
+  run.rounds.forEach(r => { if (r.tl == null) r.tl = r.done ? 0 : CONFIG.WORD_MS; });
+  return run;
+}
+function liveStreak() { const t = todayStr(); return (S.streak.last === t || S.streak.last === shiftDay(t, -1)) ? S.streak.cur : 0; }
+function recordRound(r) {
+  S.stats.hist[zoneIndexFor(r.best)]++;
+  S.stats.words++;
+  if (r.slanger) S.stats.slangers++;
+}
+function completeRun(run) {
+  if (run.done) return;
+  run.done = true;
+  run.total = run.rounds.reduce((s, r) => s + r.final, 0);
+  const st = S.stats;
+  st.played++; if (run.rounds.filter(r => r.solved).length >= 4) st.wins++;
+  st.totalDepth += run.total;
+  if (run.date === todayStr() && S.streak.last !== run.date) {
+    S.streak.cur = S.streak.last === shiftDay(run.date, -1) ? S.streak.cur + 1 : 1;
+    S.streak.last = run.date;
+    S.streak.max = Math.max(S.streak.max, S.streak.cur);
+  }
+  save();
+}
+function pool() { return PUZZLES.filter(p => !(S.settings.filter && p.nsfw)); }
+function shuffle(a) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+function pickRandom(exclude, target) {
+  let c = pool().filter(p => !exclude.has(p.id));
+  if (!c.length) c = pool();
+  if (target) { const best = Math.min(...c.map(p => Math.abs(p.difficulty - target))); c = c.filter(p => Math.abs(p.difficulty - target) === best); }
+  return c[Math.floor(Math.random() * c.length)];
+}
+function packPuzzles(key) {
+  const pk = CONFIG.PACKS.find(x => x.key === key);
+  return pool().filter(p => p.pack === key || (p.pack === 'core' && pk.tags.some(t => p.tags.includes(t))));
+}
+
+/* =====================================================================
+   ROUTER — plain hash names so links survive hosting (#daily, #day-2026-11-20 …)
+   ===================================================================== */
+const ROUTES = {
+  home: viewHome, daily: viewDaily, endless: viewEndless, archive: viewArchive, packs: viewPacks, 'pack-play': viewPackPlay,
+  speed: viewSpeed, reverse: viewReverse, party: viewParty, 'party-play': viewPartyPlay, stats: viewStats, how: viewHow, options: viewOptions
+};
+const NAV_OF = { 'pack-play': 'packs', 'party-play': 'party' };
+let TIMERS = [];
+function currentRoute() { return location.hash.replace(/^#\/?/, '').split(/[/?&]/)[0].toLowerCase() || 'home'; }
+function route() {
+  TIMERS.forEach(t => clearInterval(t)); TIMERS = [];
+  stopClock(); P = null; REVCLOCK = false;
+  document.body.classList.remove('playing');
+  $('#burst').replaceChildren();
+  let r = currentRoute(), node;
+  const dm = /^day-(\d{4}-\d{2}-\d{2})$/.exec(r);
+  if (dm && dm[1] >= CONFIG.EPOCH && dm[1] <= todayStr()) node = dayView(dm[1], dm[1] !== todayStr()), r = 'archive';
+  else if (ROUTES[r]) node = ROUTES[r]();
+  else { node = viewHome(); r = 'home'; }
+  $('#view').replaceChildren(node);
+  const navKey = NAV_OF[r] || r;
+  document.querySelectorAll('.nav [data-nav]').forEach(a => { if (a.dataset.nav === navKey) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
+  window.scrollTo(0, 0);
+  focusFirst();
+}
+function focusFirst() {
+  const view = $('#view');
+  const f = view.querySelector('[data-autofocus]');
+  if (f && !f.disabled && f.offsetParent !== null) f.focus({ preventScroll: true }); else view.focus({ preventScroll: true });
+}
+function go(hash) { if (location.hash === hash) route(); else location.hash = hash; }
+
+/* =====================================================================
+   VIEWS
+   ===================================================================== */
+const MODE_CARDS = [
+  { href: '#daily', t: 'Daily Dive', d: 'Seven definitions, the same for everyone. Sixty seconds of oxygen per word.', ic: 'dive', c: 'var(--z6)', best: () => liveStreak() ? 'Streak ' + liveStreak() : '' },
+  { href: '#endless', t: 'Endless', d: 'Word after word until you choose to surface. No streak at stake.', ic: 'loop', c: 'var(--z5)', best: () => S.modes.endless.best ? 'Best ' + fmtM(S.modes.endless.best) : '' },
+  { href: '#speed', t: 'Speed Trench', d: 'Ninety seconds on one clock. How deep can you get?', ic: 'clock', c: 'var(--hot)', best: () => S.modes.speed.best ? 'Best ' + fmtM(S.modes.speed.best) : '' },
+  { href: '#reverse', t: 'Reverse Dive', d: 'You get the word. Pick the real definition from four.', ic: 'swap', c: '#ff6bd5', best: () => S.modes.reverse.best ? 'Best ' + fmtM(S.modes.reverse.best) : '' },
+  { href: '#party', t: 'Puffer Party', d: 'Pass-and-play for two to six divers on one phone.', ic: 'party', c: 'var(--z1)', best: () => S.modes.party.played ? S.modes.party.played + ' played' : '' },
+  { href: '#packs', t: 'Themed packs', d: 'Money, Drunk, Internet, Gym, Workplace and the 2000s.', ic: 'grid', c: 'var(--z2)', best: () => '' },
+  { href: '#archive', t: 'Archive', d: 'Replay any past day. Finished ones are marked.', ic: 'cal', c: 'var(--z4)', best: () => '' },
+  { href: '#stats', t: 'Stats', d: 'Streaks, win rate, average depth and where your guesses land.', ic: 'bars', c: 'var(--z3)', best: () => '' },
+  { href: '#how', t: 'How to play', d: 'Zones, tiers, oxygen and the stingy autocorrect.', ic: 'how', c: 'var(--z0)', best: () => '' },
+  { href: '#options', t: 'Options', d: 'Content filter, motion, contrast, sound, reset.', ic: 'opts', c: '#9bb3c6', best: () => '' }
+];
+function modeCard(m) {
+  const b = m.best();
+  return h('li', null, h('a', { class: 'mode', href: m.href, style: '--mc:' + m.c },
+    h('div', { class: 'ic', html: IC[m.ic], 'aria-hidden': 'true' }), h('h3', null, m.t), h('p', null, m.d), b ? h('span', { class: 'best' }, b) : null));
+}
+function viewHome() {
+  document.title = 'Slanger';
+  setSeaDepth(0.36);
+  const run = S.runs[todayStr()];
+  const done = run && run.done, started = run && !run.done && run.rounds.some(r => r.g.length || r.done);
+  const label = done ? 'See today’s result' : started ? 'Continue · puzzle ' + (run.i + 1) + ' of 7' : 'Dive in';
+  const cd = h('p', { class: 'countdown num' });
+  if (done) tick(() => { cd.textContent = 'Next daily dive in ' + hms(msToUtcMidnight()); if (msToUtcMidnight() < 1000) route(); });
+  const streak = liveStreak();
+  return h('div', { class: 'wrap home' },
+    h('section', { class: 'hero' },
+      h('div', null,
+        h('h1', { class: 'title' }, 'Slanger'),
+        h('p', { class: 'tag' }, CONFIG.TAGLINE),
+        h('p', { class: 'lede' }, 'Read a slang definition. Guess the word before your oxygen runs out. The closer you get, the deeper you sink — hit it first time and you’re one in a slanger.'),
+        h('div', { class: 'cta' },
+          h('a', { class: 'btn primary', href: '#daily', 'data-autofocus': true, html: IC.down }, h('span', null, label)),
+          h('span', { class: 'chip num' }, 'Streak ' + streak),
+          S.stats.slangers ? h('span', { class: 'chip num' }, S.stats.slangers + ' Slanger' + (S.stats.slangers > 1 ? 's' : '')) : null),
+        done ? cd : null),
+      h('div', { class: 'heroart', role: 'img', 'aria-label': 'A diver sinking through zones named Gibberish, Small Talk, Buzzword, Jargon, Vernacular and Lingo towards a glowing swarm of letters.', html: heroSVG() })),
+    h('h2', { class: 'sect' }, 'Pick your dive'),
+    h('ul', { class: 'modes' }, MODE_CARDS.map(modeCard)));
+}
+function startScreen(o) {
+  return h('div', { class: 'wrap page' },
+    h('p', { class: 'kicker' }, o.kicker || 'Mode'),
+    h('h1', { tabindex: '-1' }, o.title),
+    h('p', { class: 'intro' }, o.intro),
+    o.stats ? h('div', { class: 'stats' }, o.stats.map(s => stat(s[1], s[0]))) : null,
+    o.extra || null,
+    h('div', { class: 'rowbtns' }, h('button', { class: 'btn primary', type: 'button', 'data-autofocus': true, onclick: o.start }, o.startLabel || 'Start'), h('a', { class: 'btn', href: '#home' }, 'Home')));
+}
+
+/* ---------- the shared play engine (Daily, Archive, Endless, Packs, Speed, Party) ---------- */
+let P = null;   // { s: session, o: options }
+let UI = {};
+function mountPlay(s, o) {
+  stopClock();
+  P = { s, o };
+  document.body.classList.add('playing');
+  document.title = o.title() + ' · Slanger';
+  UI = { lastZone: 0 };
+  UI.title = h('h1');
+  UI.tot = h('div', { class: 'tot num' });
+  const bar = h('header', { class: 'bar' },
+    h('a', { class: 'back', href: o.back || '#home', 'aria-label': 'Back', html: IC.back }), UI.title,
+    o.endBtn ? h('button', { class: 'btn', type: 'button', onclick: o.endBtn.fn }, o.endBtn.label) : null, UI.tot);
+  UI.scale = h('div', { class: 'scale' });
+  UI.fill = h('div', { class: 'fill' });
+  UI.scale.append(UI.fill);
+  CONFIG.ZONES.forEach((z, k) => {
+    const top = k === 6 ? 0.94 : z.min / 100 * 0.94, bot = k === 6 ? 1 : (z.max + 1) / 100 * 0.94;
+    UI.scale.append(h('div', { class: 'seg z' + k, style: 'top:' + (top * 100) + '%;height:' + ((bot - top) * 100) + '%' }, h('b', null, z.name), h('span', { class: 'num' }, fmtM(z.d0))));
+  });
+  UI.ticks = h('div');
+  UI.diver = h('div', { class: 'diver', html: SVG.diver });
+  UI.scale.append(UI.ticks, UI.diver);
+  UI.gauge = h('aside', { class: 'gauge', role: 'img', 'aria-label': 'Depth gauge' }, UI.scale);
+  UI.card = h('article', { class: 'card panel' });
+  UI.oxyBar = h('i'); UI.oxyT = h('span', { class: 't num' });
+  UI.oxy = h('div', { class: 'oxy', role: 'timer', 'aria-label': o.timer === 'global' ? 'Trench clock' : 'Oxygen for this word' },
+    h('b', null, o.timer === 'global' ? 'CLOCK' : 'O₂'), h('div', { class: 'trk' }, UI.oxyBar), UI.oxyT);
+  UI.oxy.hidden = !o.timer;
+  UI.pips = h('div', { class: 'air', 'aria-hidden': 'true' });
+  UI.airlab = h('span', { class: 'airlab num' });
+  UI.airrow = h('div', { class: 'airrow' }, UI.pips, UI.airlab);
+  UI.input = h('input', { type: 'text', id: 'guess', name: 'guess', maxlength: '40', autocomplete: 'off', autocapitalize: 'off', autocorrect: 'off', spellcheck: 'false', enterkeyhint: 'go', placeholder: 'Your guess', 'aria-label': 'Your guess', 'data-autofocus': true });
+  UI.dive = h('button', { class: 'btn primary', type: 'submit' }, 'Dive');
+  UI.form = h('form', { class: 'guess', onsubmit: onSubmit }, UI.input, UI.dive);
+  UI.skip = o.skip ? h('button', { class: 'btn small skipbtn', type: 'button', onclick: onSkip }, 'Skip word') : null;
+  UI.msg = h('p', { class: 'msgline', role: 'status' });
+  UI.result = h('div', { class: 'result' });
+  UI.hints = o.hints ? h('div', { class: 'hints', role: 'group', 'aria-label': 'Hints, each costs depth' }) : null;
+  UI.log = h('ol', { class: 'log', 'aria-label': 'Your guesses, deepest first' });
+  UI.loghead = h('div', { class: 'loghead' }, h('h2', null, 'Dive log'), h('span', { class: 'airlab' }, 'deepest first'));
+  UI.play = h('div', { class: 'col' }, UI.card, UI.oxy, UI.airrow, UI.form, UI.skip, UI.msg, UI.result, UI.hints, UI.loghead, UI.log);
+  const root = h('div', null, bar, h('div', { class: 'play' }, UI.gauge, UI.play));
+  renderPuzzle(false);
+  return root;
+}
+function cur() { const s = P.s; return { s, o: P.o, r: s.rounds[s.i], p: byId(s.ids[s.i]) }; }
+function frac(score) { return score >= 100 ? 0.97 : Math.max(0, score) / 100 * 0.94; }
+function updateTotal() { const o = P.o; UI.tot.replaceChildren(fmtM(o.total()), h('small', null, o.totalLabel ? o.totalLabel() : 'total')); }
+function renderPuzzle(animate) {
+  const { s, o, r, p } = cur();
+  UI.title.replaceChildren(o.title(), h('small', null, o.sub()));
+  updateTotal();
+  const gated = !!o.gate && !r.started && !r.done;
+  const active = !r.done && !gated;
+  if (r.done && !o.autoNext) showReveal(false);
+  else if (gated) UI.card.replaceChildren(...gateCard(o.gate(s.i)));
+  else UI.card.replaceChildren(...questionCard(p, r));
+  if (animate && motionOK()) { UI.card.classList.remove('slide', 'in'); void UI.card.offsetWidth; UI.card.classList.add('slide'); }
+  [UI.form, UI.airrow, UI.hints, UI.skip].forEach(el => { if (el) el.hidden = !active; });
+  UI.oxy.hidden = !o.timer || gated || (o.timer === 'word' && r.done);
+  UI.input.disabled = UI.dive.disabled = !active;
+  UI.msg.textContent = '';
+  UI.lastZone = zoneIndexFor(r.best);
+  renderAir(r); if (UI.hints) renderHints(r, p); renderLog(r); renderGauge(r, !animate);
+  const last = r.g[r.g.length - 1];
+  if (last && active) showResult(last); else UI.result.classList.remove('show');
+  if (o.timer) drawOxy(o.timer === 'global' ? s.tl : r.tl);
+  if (active && o.timer) startClock();
+  if (animate) { const f = gated ? UI.card.querySelector('button') : UI.input; if (f) f.focus({ preventScroll: true }); }
+}
+function gateCard(name) {
+  const { r } = cur();
+  return [h('div', { class: 'gate' },
+    h('p', { class: 'kicker' }, 'Pass the phone to'),
+    h('h2', { class: 'who' }, name),
+    h('p', null, 'Everyone else, look away. Your sixty seconds of oxygen start when you tap.'),
+    h('button', { class: 'btn primary', type: 'button', 'data-autofocus': true, onclick: () => { r.started = true; save(); sound('dive'); renderPuzzle(true); } }, 'I’m ' + name + ' — dive'))];
+}
+function questionCard(p, r) {
+  const peek = r.h.includes('peek');
+  const parts = p.example.split('___');
+  const ex = h('p', { class: 'ex' });
+  parts.forEach((part, i) => {
+    ex.append(part);
+    if (i < parts.length - 1) ex.append(h('span', { class: 'mask', 'aria-label': peek ? 'partly hidden word ' + peekPattern(p.term).split('').join(' ') : 'hidden word' }, peek ? peekPattern(p.term) : '▇▇▇▇▇'));
+  });
+  const chips = r.h.filter(k => k !== 'peek').map(k => h('span', { class: 'chip' }, hintText(k, p)));
+  return [h('p', { class: 'kicker' }, 'Definition'), h('p', { class: 'def' }, p.definition), ex, chips.length ? h('div', { class: 'hintout' }, chips) : null].filter(Boolean);
+}
+function renderAir(r) {
+  const left = CONFIG.MAX_GUESSES - r.g.length;
+  UI.pips.replaceChildren(...Array.from({ length: CONFIG.MAX_GUESSES }, (_, i) => h('span', { class: 'pip' + (i >= left ? ' used' : '') })));
+  UI.airlab.textContent = left + ' of ' + CONFIG.MAX_GUESSES + ' guesses left';
+}
+function renderHints(r, p) {
+  UI.hints.replaceChildren(...CONFIG.HINTS.map(hd => {
+    const taken = r.h.includes(hd.key);
+    return h('button', { type: 'button', class: 'hint', 'aria-pressed': taken ? 'true' : 'false', disabled: taken || r.done ? true : null, onclick: () => takeHint(hd.key) },
+      h('b', null, taken ? hd.label + ' used' : hd.label), h('span', { class: 'num' }, '−' + fmtM(hd.cost)));
+  }));
+}
+function renderLog(r) {
+  const sorted = r.g.map((g, i) => Object.assign({ n: i + 1 }, g)).sort((a, b) => b.s - a.s || a.n - b.n);
+  UI.log.replaceChildren(...sorted.map(g => h('li', { class: 'z' + g.z },
+    h('span', { class: 'w' }, g.c ? [h('s', { 'aria-label': 'typed ' + g.t }, g.t), g.c] : g.t),
+    h('span', { class: 'd num' }, fmtM(g.d)),
+    h('span', { class: 'sub' }, h('span', { class: 'zc z' + g.z }, CONFIG.ZONES[g.z].name),
+      g.cue === 'first' ? h('span', null, 'first dive') : h('span', { class: 'cue' + (g.cue === 'deeper' ? ' deeper' : '') }, g.cue), h('span', null, '· guess ' + g.n)))));
+  UI.loghead.hidden = !r.g.length;
+}
+function renderGauge(r, instant) {
+  const f = frac(r.best);
+  UI.diver.style.top = (f * 100) + '%';
+  UI.fill.style.height = (f * 100) + '%';
+  UI.ticks.replaceChildren(...r.g.map(g => h('span', { class: 'tick z' + g.z, style: 'top:' + (frac(g.s) * 100) + '%' })));
+  UI.gauge.setAttribute('aria-label', 'Depth gauge: ' + (r.g.length ? fmtM(r.bestDepth) + ', ' + CONFIG.ZONES[zoneIndexFor(r.best)].name : 'at the surface'));
+  setSeaDepth(f, instant);
+}
+function showResult(g) {
+  UI.result.className = 'result z' + g.z;
+  UI.result.replaceChildren(
+    h('div', { class: 'top' }, h('span', { class: 'm num' }, fmtM(g.d)), h('span', { class: 'zc z' + g.z }, CONFIG.ZONES[g.z].name),
+      g.cue === 'first' ? null : h('span', { class: 'cue' + (g.cue === 'deeper' ? ' deeper' : '') }, g.cue)),
+    h('p', null, '“' + (g.c || g.t) + '” — ' + g.l));
+  void UI.result.offsetWidth; UI.result.classList.add('show');
+}
+
+/* ---------- oxygen clock ---------- */
+const CLOCK = { id: 0, deadline: 0, last: -1 };
+function clockTL() { const { s, o, r } = cur(); return o.timer === 'global' ? s.tl : r.tl; }
+function setClockTL(v) { const { s, o, r } = cur(); if (o.timer === 'global') s.tl = v; else r.tl = v; }
+function startClock() {
+  stopClock(false);
+  if (!P || !P.o.timer) return;
+  const tl = clockTL();
+  CLOCK.deadline = performance.now() + tl; CLOCK.last = Math.ceil(tl / 1000);
+  CLOCK.id = setInterval(clockTick, 100);
+}
+function stopClock(doSave) { if (CLOCK.id) { clearInterval(CLOCK.id); CLOCK.id = 0; if (doSave !== false) save(); } }
+function clockTick() {
+  if (!P) return stopClock();
+  const left = Math.max(0, CLOCK.deadline - performance.now());
+  setClockTL(left); drawOxy(left);
+  const sec = Math.ceil(left / 1000);
+  if (sec !== CLOCK.last) {
+    CLOCK.last = sec;
+    if (sec <= 10 && sec > 0) sound('tick', sec);
+    if (sec === 10) announce('Ten seconds of oxygen left.');
+    if (sec % 2 === 0) save();
+  }
+  if (left <= 0) { stopClock(); timeUp(); }
+}
+function drawOxy(left) {
+  if (!UI.oxy || left == null) return;
+  const total = P.o.timer === 'global' ? CONFIG.SPEED_MS : CONFIG.WORD_MS;
+  UI.oxyBar.style.transform = 'scaleX(' + Math.max(0, left / total).toFixed(4) + ')';
+  UI.oxyT.textContent = mss(left);
+  UI.oxy.classList.toggle('low', left <= 10000 && left > 0);
+}
+function timeUp() {
+  const { o, r, p } = cur();
+  if (o.timer === 'global') { o.onTimeUp(); return; }
+  if (r.done) return;
+  endRound(r, 'time');
+  sound('timeout');
+  announce('Out of oxygen. The word was ' + p.term + '.');
+  afterRound(r);
+}
+function endRound(r, out) {
+  r.out = out;
+  Object.assign(r, roundFinal(r, P.o.plain));
+  r.done = true;
+  recordRound(r);
+  save();
+}
+function afterRound(r) {
+  const { s, o, p } = cur();
+  UI.input.disabled = UI.dive.disabled = true;
+  if (o.timer === 'word') stopClock();
+  if (o.autoNext) {
+    if (!r.solved) toast('It was “' + p.term + '”');
+    const i = s.i;
+    setTimeout(() => { if (P && P.s === s && s.i === i && !s.done) o.onNext(); }, r.solved ? 1150 : 900);
+    return;
+  }
+  const delay = !motionOK() ? 0 : r.solved && !r.ac ? 1650 : 900;
+  setTimeout(() => { if (P && P.s === s && s.rounds[s.i] === r) showReveal(true); }, delay);
+}
+let busy = false;
+function onSubmit(ev) {
+  ev.preventDefault();
+  if (busy || !P) return;
+  const { r, p, o } = cur();
+  if (r.done) return;
+  const t = UI.input.value.trim();
+  UI.msg.classList.remove('warn');
+  if (!t) { UI.msg.textContent = 'Type a guess first. You can’t dive on an empty word.'; return; }
+  if (isBlocked(t)) { UI.msg.classList.add('warn'); UI.msg.textContent = 'Not that one. It doesn’t count and costs you nothing.'; announce('Guess not accepted.'); UI.input.select(); return; }
+  const res = scoreGuess(t, p);
+  const n = norm(t), nc = res.corrected ? norm(res.corrected) : null;
+  if (r.g.some(x => norm(x.t) === n || (x.c && norm(x.c) === n) || (nc && (norm(x.t) === nc || (x.c && norm(x.c) === nc))))) { UI.msg.textContent = 'Already tried that. Oxygen is precious.'; UI.input.select(); return; }
+  const commit = () => {
+    busy = false;
+    if (!P || P.s.rounds[P.s.i] !== r || r.done) return;
+    const prev = r.best, first = r.g.length === 0;
+    const g = { t, c: res.corrected, s: res.score, d: res.depth, z: res.zoneIndex, l: res.label, cue: first ? 'first' : (res.score > prev ? 'deeper' : 'no deeper') };
+    r.g.push(g);
+    const deeper = res.score > r.best;
+    if (deeper) { r.best = res.score; r.bestDepth = res.depth; }
+    if (res.solved) { r.solved = true; r.ac = !!res.corrected; r.slanger = res.exact && r.g.length === 1 && r.h.length === 0 && !o.plain; }
+    const finished = r.solved || r.g.length >= CONFIG.MAX_GUESSES;
+    if (finished) endRound(r, r.solved ? 'solved' : 'air'); else save();
+    UI.input.value = ''; UI.input.classList.remove('ac');
+    announce((g.c || g.t) + '. ' + g.d.toLocaleString('en-GB') + ' metres. ' + CONFIG.ZONES[g.z].name + '.' + (g.cue === 'deeper' ? ' Deeper.' : g.cue === 'no deeper' ? ' No deeper.' : ''));
+    // the show
+    if (res.score === 100) { wordBurst(p.term, 6, r.slanger ? 'slanger' : 'exact'); sound(r.slanger ? 'slanger' : 'exact'); }
+    else if (res.solved) { wordBurst(res.corrected, res.zoneIndex, 'close', 'Autocorrected · ' + fmtM(res.depth)); sound('ding', res.score); }
+    else if (res.score >= 70) { wordBurst(g.c || g.t, res.zoneIndex, 'close'); sound('ding', res.score); }
+    else if (res.score >= 50) { FX.burst(innerWidth / 2, innerHeight * 0.45, zoneColor(res.zoneIndex), 26, null); sound('dive', res.score); }
+    else sound('dive', res.score);
+    if (deeper && motionOK()) { UI.diver.classList.remove('sinking'); void UI.diver.offsetWidth; UI.diver.classList.add('sinking'); }
+    renderAir(r); renderLog(r); renderGauge(r, false); showResult(g); updateTotal();
+    if (finished) afterRound(r); else UI.input.focus({ preventScroll: true });
+  };
+  if (res.corrected && motionOK()) { busy = true; UI.input.value = res.corrected; UI.input.classList.add('ac'); setTimeout(commit, 600); }
+  else commit();
+}
+function onSkip() {
+  const { r } = cur();
+  if (r.done || busy) return;
+  endRound(r, 'skip');
+  afterRound(r);
+}
+function takeHint(key) {
+  const { r, p } = cur();
+  if (r.done || r.h.includes(key)) return;
+  r.h.push(key); save();
+  UI.card.replaceChildren(...questionCard(p, r));
+  renderHints(r, p);
+  const hd = CONFIG.HINTS.find(x => x.key === key);
+  announce(hd.label + ' hint: ' + hintText(key, p) + '. Costs ' + hd.cost + ' metres.');
+  UI.input.focus({ preventScroll: true });
+}
+function showReveal(animate) {
+  const { s, o, r, p } = cur();
+  [UI.form, UI.hints, UI.airrow, UI.skip].forEach(el => { if (el) el.hidden = true; });
+  UI.oxy.hidden = true;
+  UI.result.classList.remove('show');
+  const z = zoneIndexFor(r.best);
+  const parts = p.example.split('___');
+  const ex = h('p', { class: 'ex' });
+  parts.forEach((part, i) => { ex.append(part); if (i < parts.length - 1) ex.append(h('mark', null, p.term.toLowerCase())); });
+  const score = h('b', { class: 'num' }, fmtM(animate ? 0 : r.final));
+  const next = h('button', { class: 'btn primary next', type: 'button', onclick: () => { sound('dive'); o.onNext(); } }, o.nextLabel());
+  const badge = r.slanger ? h('div', { class: 'badge sl' }, 'One in a Slanger')
+    : r.ac ? h('div', { class: 'badge ac' }, 'Autocorrected. Solved, but typos don’t reach the bottom.')
+    : r.solved ? h('div', { class: 'badge sl' }, 'Hit the Slanger in ' + r.g.length)
+    : r.out === 'time' ? h('div', { class: 'badge out' }, 'Out of oxygen')
+    : h('div', { class: 'badge out' }, 'Out of guesses');
+  const content = h('div', { class: 'reveal' },
+    h('p', { class: 'kicker' }, 'The word was'),
+    h('h2', { class: 'term' }, p.term),
+    h('p', { class: 'pos' }, p.pos),
+    h('p', { class: 'def' }, p.definition), ex, badge,
+    h('dl', { class: 'tally' },
+      h('dt', null, 'Deepest'), h('dd', { class: 'num' }, fmtM(r.bestDepth) + ' · ' + CONFIG.ZONES[z].name),
+      r.pen ? [h('dt', null, 'Hints (' + r.h.length + ')'), h('dd', { class: 'num' }, '−' + fmtM(r.pen))] : null,
+      r.bonus ? [h('dt', null, 'Spare guesses'), h('dd', { class: 'num' }, '+' + fmtM(r.bonus))] : null,
+      r.tb ? [h('dt', null, 'Oxygen left'), h('dd', { class: 'num' }, '+' + fmtM(r.tb))] : null,
+      r.h.length && r.final >= CONFIG.HINT_CAP ? [h('dt', null, 'Hint cap'), h('dd', null, 'max ' + fmtM(CONFIG.HINT_CAP))] : null),
+    h('div', { class: 'scoreline' }, h('span', null, 'Puzzle score'), score),
+    next);
+  const swap = () => {
+    UI.card.replaceChildren(content);
+    UI.card.classList.remove('out', 'slide');
+    fitText(content.querySelector('.term'));
+    if (animate && motionOK()) { UI.card.classList.remove('in'); void UI.card.offsetWidth; UI.card.classList.add('in'); }
+    if (animate) { countUp(score, r.final, 1100); drift(z); }
+    updateTotal();
+    next.focus({ preventScroll: true });
+    UI.card.scrollIntoView({ block: 'nearest', behavior: motionOK() ? 'smooth' : 'auto' });
+  };
+  if (animate) announce('The word was ' + p.term + '. ' + (r.slanger ? 'One in a Slanger! ' : '') + 'Puzzle score ' + r.final.toLocaleString('en-GB') + ' metres.');
+  if (animate && motionOK()) { UI.card.classList.add('out'); setTimeout(swap, 300); } else swap();
+}
+
+/* ---------- Daily + Archive ---------- */
+function viewDaily() { return dayView(todayStr(), false); }
+function dayView(date, archive) {
+  const run = getDayRun(date);
+  if (run.done) return viewDaySummary(run, archive);
+  return mountPlay(run, {
+    title: () => (archive ? 'Archive #' : 'Daily Dive #') + run.no,
+    sub: () => 'Puzzle ' + (run.i + 1) + ' of 7',
+    back: archive ? '#archive' : '#home', timer: 'word', hints: true,
+    total: () => sumFinals(run),
+    nextLabel: () => run.i >= run.ids.length - 1 ? 'Surface and see your dive' : 'Next puzzle',
+    onNext: () => {
+      if (run.i >= run.ids.length - 1) { completeRun(run); sound('surface'); route(); return; }
+      run.i++; save(); renderPuzzle(true); window.scrollTo(0, 0);
+    }
+  });
+}
+function viewDaySummary(run, archive) {
+  document.title = (archive ? 'Archive #' : 'Dive #') + run.no + ' result · Slanger';
+  const deepest = run.rounds.reduce((b, r, i) => r.bestDepth > b.d ? { d: r.bestDepth, i } : b, { d: -1, i: 0 });
+  setSeaDepth(Math.min(0.97, frac(run.rounds[deepest.i].best)));
+  const guesses = run.rounds.reduce((s, r) => s + r.g.length, 0);
+  const hints = run.rounds.reduce((s, r) => s + r.h.length, 0);
+  const solved = run.rounds.filter(r => r.solved).length;
+  const text = shareText(run);
+  const cd = archive ? null : h('p', { class: 'countdown num' });
+  if (cd) tick(() => { cd.textContent = 'Next daily dive in ' + hms(msToUtcMidnight()) + ' (midnight UTC)'; if (msToUtcMidnight() < 1000) route(); });
+  const dp = byId(run.ids[deepest.i]);
+  return resultsView({
+    kicker: (archive ? 'Archive #' : 'Daily Dive #') + run.no + ' · surfaced',
+    total: run.total, back: archive ? '#archive' : '#home', backLabel: archive ? 'Archive' : 'Home',
+    lede: solved + ' of 7 words found. ' + (run.rounds.some(r => r.slanger) ? 'You were one in a slanger at least once.' : 'No first-guess Slangers this time.'),
+    stats: [[fmtM(deepest.d), 'deepest · ' + dp.term], [guesses + ' / 42', 'guesses used'], [String(hints), hints === 1 ? 'hint taken' : 'hints taken'], archive ? [String(run.rounds.filter(r => r.out === 'time').length), 'ran out of oxygen'] : [String(liveStreak()), 'day streak · best ' + S.streak.max]],
+    share: text, after: cd,
+    listTitle: archive ? 'That day’s seven' : 'Today’s seven',
+    items: run.rounds.map((r, i) => ({ id: run.ids[i], r }))
+  });
+}
+function viewArchive() {
+  document.title = 'Archive · Slanger';
+  setSeaDepth(0.5);
+  const t = todayStr(), days = [];
+  for (let d = t; d >= CONFIG.EPOCH; d = shiftDay(d, -1)) days.push(d);
+  const fmt = d => new Date(d + 'T12:00:00Z').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
+  return h('div', { class: 'wrap page' },
+    h('p', { class: 'kicker' }, 'Archive'),
+    h('h1', { tabindex: '-1', 'data-autofocus': true }, 'Every dive so far'),
+    h('p', { class: 'intro' }, 'Replay any past day with the same seven words everyone got. Archive dives don’t touch your streak.'),
+    h('ol', { class: 'days' }, days.map(d => {
+      const run = S.runs[d], isToday = d === t;
+      const st = run && run.done ? fmtM(run.total) : run && run.rounds.some(r => r.g.length) ? 'In progress' : 'Not played';
+      return h('li', null, h('a', { class: 'panel', href: isToday ? '#daily' : '#day-' + d },
+        h('b', null, '#' + diveNumber(d) + ' · ' + (isToday ? 'Today' : fmt(d))),
+        h('span', { class: 'st num', style: run && run.done ? 'color:var(--acc)' : '' }, st),
+        h('span', null, run && run.done ? run.rounds.filter(r => r.solved).length + ' of 7 found' + (run.rounds.some(r => r.slanger) ? ' · Slanger' : '') : isToday ? 'Today’s daily dive' : 'Tap to dive')));
+    })));
+}
+
+/* ---------- Endless ---------- */
+function viewEndless() {
+  const M = S.modes.endless;
+  if (M.run && !M.run.done) return playEndless(M.run);
+  document.title = 'Endless · Slanger';
+  setSeaDepth(0.5);
+  return startScreen({
+    kicker: 'Endless', title: 'Keep sinking', intro: 'One word after another, sixty seconds of oxygen each, until you choose to surface. Words get harder the deeper you go. Your run keeps everything you bank.',
+    stats: [['best run', M.best ? fmtM(M.best) : '—'], ['runs', String(M.played)], ['words dived', String(M.words)]],
+    start: () => { M.run = { kind: 'endless', ids: [pickRandom(new Set(), 1).id], i: 0, rounds: [newRound()], done: false }; save(); route(); }
+  });
+}
+function playEndless(run) {
+  return mountPlay(run, {
+    title: () => 'Endless', sub: () => 'Word ' + (run.i + 1) + ' · surface any time', back: '#home', timer: 'word', hints: true,
+    total: () => sumFinals(run), endBtn: { label: 'Surface', fn: endEndless }, nextLabel: () => 'Next word',
+    onNext: () => {
+      const used = new Set(run.ids.slice(-50));
+      run.ids.push(pickRandom(used, Math.min(5, 1 + Math.floor((run.i + 1) / 3))).id);
+      run.rounds.push(newRound()); run.i++; save(); renderPuzzle(true); window.scrollTo(0, 0);
+    }
+  });
+}
+function endEndless() {
+  const M = S.modes.endless, run = M.run;
+  if (!run) return;
+  stopClock();
+  const items = run.rounds.map((r, i) => ({ id: run.ids[i], r })).filter(x => x.r.done);
+  const total = items.reduce((a, x) => a + x.r.final, 0);
+  const newBest = total > M.best;
+  M.played++; M.words += items.length; M.best = Math.max(M.best, total);
+  M.run = null; save();
+  showResults({ kicker: 'Endless · surfaced', total, newBest, back: '#endless', backLabel: 'Endless',
+    lede: items.length + (items.length === 1 ? ' word' : ' words') + ' dived. ' + (newBest ? 'New best run.' : 'Best run: ' + fmtM(M.best) + '.'),
+    share: CONFIG.NAME + ' Endless · ' + fmtM(total) + ' over ' + items.length + ' words\n' + CONFIG.SHARE_URL,
+    items, again: () => { M.run = { kind: 'endless', ids: [pickRandom(new Set(), 1).id], i: 0, rounds: [newRound()], done: false }; save(); go('#endless'); } });
+}
+
+/* ---------- Themed packs ---------- */
+function viewPacks() {
+  document.title = 'Themed packs · Slanger';
+  setSeaDepth(0.45);
+  const M = S.modes.packs, act = M.run && !M.run.done ? CONFIG.PACKS.find(x => x.key === M.run.pack) : null;
+  const colors = ['var(--z1)', 'var(--z2)', 'var(--z5)', 'var(--z3)', 'var(--z4)', '#ff6bd5'];
+  return h('div', { class: 'wrap page' },
+    h('p', { class: 'kicker' }, 'Themed packs'),
+    h('h1', { tabindex: '-1' }, 'Pick a pack'),
+    h('p', { class: 'intro' }, 'Up to ' + CONFIG.PACK_SIZE + ' words from one corner of slang, in a fresh order every time.'),
+    act ? h('div', { class: 'rowbtns' }, h('a', { class: 'btn primary', href: '#pack-play', 'data-autofocus': true }, 'Resume the ' + act.name + ' pack')) : null,
+    h('ul', { class: 'packs' }, CONFIG.PACKS.map((pk, i) => {
+      const n = Math.min(CONFIG.PACK_SIZE, packPuzzles(pk.key).length), best = M.best[pk.key];
+      return h('li', null, h('button', { class: 'mode', type: 'button', style: '--mc:' + colors[i], 'data-autofocus': !act && i === 0 ? true : null, onclick: () => startPack(pk.key) },
+        h('div', { class: 'ic', html: IC.grid, 'aria-hidden': 'true' }), h('h3', null, pk.name), h('p', null, pk.blurb + ' ' + n + ' words.'),
+        h('span', { class: 'best' }, best ? 'Best ' + fmtM(best) : 'Not played yet')));
+    })));
+}
+function startPack(key) {
+  const ids = shuffle(packPuzzles(key)).slice(0, CONFIG.PACK_SIZE).sort((a, b) => a.difficulty - b.difficulty).map(p => p.id);
+  S.modes.packs.run = { kind: 'pack', pack: key, ids, i: 0, rounds: ids.map(newRound), done: false };
+  save(); go('#pack-play');
+}
+function viewPackPlay() {
+  const run = S.modes.packs.run;
+  if (!run || run.done) return viewPacks();
+  const pk = CONFIG.PACKS.find(x => x.key === run.pack);
+  return mountPlay(run, {
+    title: () => pk.name + ' pack', sub: () => 'Word ' + (run.i + 1) + ' of ' + run.ids.length, back: '#packs', timer: 'word', hints: true,
+    total: () => sumFinals(run), nextLabel: () => run.i >= run.ids.length - 1 ? 'Finish the pack' : 'Next word',
+    onNext: () => {
+      if (run.i < run.ids.length - 1) { run.i++; save(); renderPuzzle(true); window.scrollTo(0, 0); return; }
+      const M = S.modes.packs, total = sumFinals(run), newBest = total > (M.best[pk.key] || 0);
+      M.best[pk.key] = Math.max(M.best[pk.key] || 0, total); M.played[pk.key] = (M.played[pk.key] || 0) + 1; M.run = null; save();
+      showResults({ kicker: pk.name + ' pack · surfaced', total, newBest, back: '#packs', backLabel: 'Packs',
+        lede: run.rounds.filter(r => r.solved).length + ' of ' + run.ids.length + ' found. ' + (newBest ? 'New best for this pack.' : 'Pack best: ' + fmtM(M.best[pk.key]) + '.'),
+        share: CONFIG.NAME + ' · ' + pk.name + ' pack · ' + fmtM(total) + '\n' + CONFIG.SHARE_URL,
+        items: run.rounds.map((r, i) => ({ id: run.ids[i], r })), again: () => startPack(pk.key) });
+    }
+  });
+}
+
+/* ---------- Speed Trench ---------- */
+function viewSpeed() {
+  const M = S.modes.speed;
+  if (M.run && !M.run.done) return playSpeed(M.run);
+  document.title = 'Speed Trench · Slanger';
+  setSeaDepth(0.6);
+  return startScreen({
+    kicker: 'Speed Trench', title: 'Ninety seconds', intro: 'One clock for the whole dive. Each word banks the deepest guess you make on it. No hints, no bonuses — solve it or skip it and keep sinking.',
+    stats: [['best', M.best ? fmtM(M.best) : '—'], ['dives', String(M.played)]], startLabel: 'Start the clock',
+    start: () => { M.run = { kind: 'speed', ids: [pickRandom(new Set(), 1).id], i: 0, rounds: [newRound()], tl: CONFIG.SPEED_MS, done: false }; save(); route(); }
+  });
+}
+function speedTotal(run) { return run.rounds.reduce((a, r) => a + (r.done ? r.final : r.bestDepth), 0); }
+function playSpeed(run) {
+  if (run.rounds[run.i].done && run.tl > 0) { run.ids.push(pickRandom(new Set(run.ids), Math.min(5, 1 + Math.floor((run.i + 1) / 2))).id); run.rounds.push(newRound()); run.i++; save(); }
+  return mountPlay(run, {
+    title: () => 'Speed Trench', sub: () => 'Word ' + (run.i + 1), back: '#speed', timer: 'global', hints: false, skip: true, plain: true, autoNext: true,
+    total: () => speedTotal(run),
+    nextLabel: () => 'Next word',
+    onNext: () => {
+      if (run.done) return;
+      const used = new Set(run.ids);
+      run.ids.push(pickRandom(used, Math.min(5, 1 + Math.floor((run.i + 1) / 2))).id);
+      run.rounds.push(newRound()); run.i++; save(); renderPuzzle(true);
+    },
+    onTimeUp: () => finishSpeed(run)
+  });
+}
+function finishSpeed(run) {
+  if (run.done) return;
+  const r = run.rounds[run.i];
+  if (!r.done) endRound(r, 'time');
+  run.done = true; run.tl = 0;
+  const M = S.modes.speed, total = speedTotal(run), newBest = total > M.best;
+  M.best = Math.max(M.best, total); M.played++; M.run = null; save();
+  sound('surface');
+  const items = run.rounds.map((x, i) => ({ id: run.ids[i], r: x })).filter(x => x.r.g.length || x.r.solved);
+  showResults({ kicker: 'Speed Trench · time', total, newBest, back: '#speed', backLabel: 'Speed Trench',
+    lede: run.rounds.filter(x => x.solved).length + ' solved in 90 seconds. ' + (newBest ? 'New best.' : 'Best: ' + fmtM(M.best) + '.'),
+    share: CONFIG.NAME + ' Speed Trench · ' + fmtM(total) + ' in 90s · ' + run.rounds.filter(x => x.solved).length + ' solved\n' + CONFIG.SHARE_URL,
+    items, again: () => { M.run = { kind: 'speed', ids: [pickRandom(new Set(), 1).id], i: 0, rounds: [newRound()], tl: CONFIG.SPEED_MS, done: false }; save(); go('#speed'); } });
+}
+
+/* ---------- Reverse Dive ---------- */
+let REV = null, REVCLOCK = false;
+function viewReverse() {
+  if (REV && !REV.done) return revPlay();
+  const M = S.modes.reverse;
+  document.title = 'Reverse Dive · Slanger';
+  setSeaDepth(0.4);
+  return startScreen({
+    kicker: 'Reverse Dive', title: 'Flip it', intro: 'You get the word. Pick its real definition from four. Sixty seconds per word — the faster you’re right, the deeper you go.',
+    stats: [['best', M.best ? fmtM(M.best) : '—'], ['dives', String(M.played)]],
+    start: () => {
+      const all = pool(), qs = shuffle(all).slice(0, CONFIG.REVERSE_QS).map(p => {
+        const others = shuffle(all.filter(x => x.id !== p.id && x.term.toLowerCase() !== p.term.toLowerCase())).slice(0, 3);
+        return { id: p.id, opts: shuffle([p].concat(others)).map(x => x.id), pick: null, pts: 0, tl: CONFIG.WORD_MS };
+      });
+      REV = { qs, i: 0, total: 0, done: false }; route();
+    }
+  });
+}
+function revPlay() {
+  document.body.classList.add('playing');
+  const q = REV.qs[REV.i], p = byId(q.id);
+  document.title = 'Reverse Dive · Slanger';
+  setSeaDepth(Math.min(0.95, REV.i / CONFIG.REVERSE_QS * 0.95));
+  const tot = h('div', { class: 'tot num' }, fmtM(REV.total), h('small', null, 'total'));
+  const oxyBar = h('i'), oxyT = h('span', { class: 't num' });
+  const oxy = h('div', { class: 'oxy', role: 'timer', 'aria-label': 'Oxygen for this word' }, h('b', null, 'O₂'), h('div', { class: 'trk' }, oxyBar), oxyT);
+  const msg = h('p', { class: 'msgline', role: 'status' });
+  const next = h('button', { class: 'btn primary next', type: 'button', hidden: true, onclick: () => { REV.i++; if (REV.i >= REV.qs.length) finishReverse(); else route(); } }, REV.i >= REV.qs.length - 1 ? 'See your dive' : 'Next word');
+  const btns = q.opts.map(id => h('button', { type: 'button', 'data-id': id, onclick: () => answer(id) }, byId(id).definition));
+  const draw = left => { oxyBar.style.transform = 'scaleX(' + (left / CONFIG.WORD_MS).toFixed(4) + ')'; oxyT.textContent = mss(left); oxy.classList.toggle('low', left <= 10000 && left > 0); };
+  let deadline = performance.now() + q.tl, last = -1, id = 0;
+  const stop = () => { if (id) { clearInterval(id); id = 0; } };
+  const answer = pick => {
+    if (q.pick !== null) return;
+    stop(); q.pick = pick || '';
+    const right = pick === q.id;
+    q.pts = right ? 1000 + Math.round(q.tl / 60) : 0;
+    REV.total += q.pts;
+    btns.forEach(b => { b.disabled = true; if (b.dataset.id === q.id) b.classList.add('right'); else if (b.dataset.id === pick) b.classList.add('wrong'); });
+    tot.replaceChildren(fmtM(REV.total), h('small', null, 'total'));
+    if (right) { wordBurst(p.term, 6, 'exact', 'Correct · +' + fmtM(q.pts)); sound('exact'); setSeaDepth(Math.min(0.95, (REV.i + 1) / CONFIG.REVERSE_QS * 0.95)); }
+    else { sound(pick ? 'wrong' : 'timeout'); }
+    msg.textContent = right ? 'Correct. +' + fmtM(q.pts) + '.' : (pick ? 'Not that one.' : 'Out of oxygen.') + ' The real one is highlighted.';
+    announce(msg.textContent);
+    next.hidden = false; next.focus({ preventScroll: true });
+  };
+  if (q.pick === null) {
+    draw(q.tl);
+    id = setInterval(() => {
+      if (!document.body.contains(oxy)) return stop();
+      q.tl = Math.max(0, deadline - performance.now()); draw(q.tl);
+      const sec = Math.ceil(q.tl / 1000);
+      if (sec !== last) { last = sec; if (sec <= 10 && sec > 0) sound('tick', sec); }
+      if (q.tl <= 0) answer(null);
+    }, 100);
+    TIMERS.push(id);
+  } else {
+    draw(q.tl);
+    setTimeout(() => { btns.forEach(b => { b.disabled = true; if (b.dataset.id === q.id) b.classList.add('right'); else if (b.dataset.id === q.pick) b.classList.add('wrong'); }); next.hidden = false; });
+  }
+  return h('div', null,
+    h('header', { class: 'bar' }, h('a', { class: 'back', href: '#home', 'aria-label': 'Back', html: IC.back }),
+      h('h1', null, 'Reverse Dive', h('small', null, 'Word ' + (REV.i + 1) + ' of ' + REV.qs.length)), tot),
+    h('div', { class: 'wrap', style: 'padding-top:16px;max-width:720px' },
+      h('article', { class: 'card panel slide' }, h('p', { class: 'kicker' }, 'Which one means'), h('h2', { class: 'bigterm' }, p.term), h('p', { class: 'reveal pos', style: 'margin:0;color:var(--mute);font-style:italic' }, p.pos)),
+      h('div', { style: 'margin-top:12px' }, oxy),
+      h('div', { class: 'rq', role: 'group', 'aria-label': 'Possible definitions' }, btns), msg, next));
+}
+function finishReverse() {
+  REV.done = true;
+  const M = S.modes.reverse, newBest = REV.total > M.best;
+  M.best = Math.max(M.best, REV.total); M.played++; save();
+  const right = REV.qs.filter(q => q.pick === q.id).length;
+  sound('surface');
+  showResults({ kicker: 'Reverse Dive · surfaced', total: REV.total, newBest, back: '#reverse', backLabel: 'Reverse Dive',
+    lede: right + ' of ' + REV.qs.length + ' right. ' + (newBest ? 'New best.' : 'Best: ' + fmtM(M.best) + '.'),
+    share: CONFIG.NAME + ' Reverse Dive · ' + fmtM(REV.total) + ' · ' + right + '/' + REV.qs.length + '\n' + CONFIG.SHARE_URL,
+    items: REV.qs.map(q => ({ id: q.id, note: q.pick === q.id ? 'Right · +' + fmtM(q.pts) : q.pick ? 'Wrong' : 'Out of oxygen' })),
+    again: () => { REV = null; go('#reverse'); } });
+}
+
+/* ---------- Puffer Party ---------- */
+function viewParty() {
+  document.title = 'Puffer Party · Slanger';
+  setSeaDepth(0.35);
+  const M = S.modes.party, act = M.run && !M.run.done ? M.run : null;
+  const names = (M.last && M.last.players) || ['', ''];
+  const list = h('div', { class: 'players' });
+  const msg = h('p', { class: 'msgline', role: 'status' });
+  const addRow = v => {
+    if (list.children.length >= 6) return;
+    const inp = h('input', { type: 'text', maxlength: '16', placeholder: 'Diver ' + (list.children.length + 1), 'aria-label': 'Player ' + (list.children.length + 1) + ' name', autocomplete: 'off' });
+    inp.value = v || '';
+    const row = h('div', { class: 'p' }, inp, h('button', { class: 'btn small', type: 'button', 'aria-label': 'Remove player', onclick: () => { if (list.children.length > 2) { row.remove(); relabel(); } } }, 'Remove'));
+    list.append(row); relabel();
+  };
+  const relabel = () => [...list.children].forEach((row, i) => { const inp = row.querySelector('input'); inp.placeholder = 'Diver ' + (i + 1); inp.setAttribute('aria-label', 'Player ' + (i + 1) + ' name'); });
+  names.forEach(addRow);
+  const per = h('select', { id: 'per' }, [2, 3, 5].map(n => h('option', { value: String(n), selected: n === 3 ? true : null }, n + ' words each')));
+  const start = () => {
+    const ps = [...list.querySelectorAll('input')].map((x, i) => x.value.trim().slice(0, 16) || 'Diver ' + (i + 1));
+    if (new Set(ps.map(x => x.toLowerCase())).size !== ps.length) { msg.textContent = 'Two divers can’t share a name.'; return; }
+    if (ps.some(isBlocked)) { msg.textContent = 'Pick a different name.'; return; }
+    startParty(ps, +per.value);
+  };
+  return h('div', { class: 'wrap page' },
+    h('p', { class: 'kicker' }, 'Puffer Party'),
+    h('h1', { tabindex: '-1' }, 'Pass the phone'),
+    h('p', { class: 'intro' }, 'Two to six divers, one device. Everyone gets the same number of words at matching difficulty, with sixty seconds of oxygen each. Deepest total wins.'),
+    act ? h('div', { class: 'rowbtns' }, h('a', { class: 'btn primary', href: '#party-play', 'data-autofocus': true }, 'Resume the party in progress'),
+      h('button', { class: 'btn', type: 'button', onclick: () => { M.run = null; save(); route(); } }, 'Abandon it')) : null,
+    h('section', { class: 'block panel' },
+      h('h2', null, 'Divers'), list,
+      h('button', { class: 'btn small', type: 'button', onclick: () => { addRow(''); const ins = list.querySelectorAll('input'); ins[ins.length - 1].focus(); } }, 'Add a diver'),
+      h('div', { class: 'field' }, h('label', { for: 'per' }, 'Words per diver'), per),
+      msg,
+      h('div', { class: 'rowbtns' }, h('button', { class: 'btn primary', type: 'button', 'data-autofocus': act ? null : true, onclick: start }, 'Start the party'))));
+}
+function startParty(players, per) {
+  const n = players.length, used = new Set(), ids = [];
+  for (let k = 0; k < per; k++) {
+    const target = Math.min(5, 1 + Math.round(k * 3 / Math.max(1, per - 1)));
+    for (let j = 0; j < n; j++) { const p = pickRandom(used, target); used.add(p.id); ids.push(p.id); }
+  }
+  S.modes.party.run = { kind: 'party', players, per, ids, i: 0, rounds: ids.map(newRound), done: false };
+  save(); go('#party-play');
+}
+function partyTotals(run) { const t = run.players.map(() => 0); run.rounds.forEach((r, i) => { if (r.done) t[i % run.players.length] += r.final; }); return t; }
+function viewPartyPlay() {
+  const run = S.modes.party.run;
+  if (!run || run.done) return viewParty();
+  const n = run.players.length, who = i => run.players[i % n];
+  return mountPlay(run, {
+    title: () => 'Puffer Party', sub: () => who(run.i) + ' · word ' + (Math.floor(run.i / n) + 1) + ' of ' + run.per,
+    back: '#party', timer: 'word', hints: true, gate: i => who(i),
+    total: () => partyTotals(run)[run.i % n], totalLabel: () => who(run.i) + '’s total',
+    nextLabel: () => run.i >= run.ids.length - 1 ? 'See who sank deepest' : 'Pass to ' + who(run.i + 1),
+    onNext: () => {
+      if (run.i < run.ids.length - 1) { run.i++; save(); renderPuzzle(true); window.scrollTo(0, 0); return; }
+      finishParty(run);
+    }
+  });
+}
+function finishParty(run) {
+  run.done = true;
+  const M = S.modes.party, tot = partyTotals(run);
+  M.played++; M.last = { players: run.players, per: run.per }; M.run = null; save();
+  const order = run.players.map((name, i) => ({ name, total: tot[i], slangers: run.rounds.filter((r, k) => k % run.players.length === i && r.slanger).length })).sort((a, b) => b.total - a.total);
+  const tie = order.length > 1 && order[0].total === order[1].total;
+  stopClock(); P = null; document.body.classList.remove('playing');
+  setSeaDepth(0.9);
+  const view = h('div', { class: 'wrap sum' },
+    h('p', { class: 'kicker' }, 'Puffer Party · results'),
+    h('h1', { class: 'totalbig', tabindex: '-1', style: 'color:var(--z1);text-shadow:0 0 34px rgba(255,207,61,.6)' }, tie ? 'It’s a tie' : order[0].name),
+    h('p', { class: 'lede' }, tie ? 'Dead level at the top. Rematch?' : 'Sank deepest with ' + fmtM(order[0].total) + '.'),
+    h('ol', { class: 'board' }, order.map((o, i) => h('li', { class: 'panel' + (i === 0 ? ' win' : '') },
+      h('span', { class: 'rk num' }, String(i + 1)), h('span', null, h('span', { class: 'nm' }, o.name), o.slangers ? h('span', { class: 'chip', style: 'margin-left:8px' }, o.slangers + ' Slanger' + (o.slangers > 1 ? 's' : '')) : null), h('span', { class: 'sc num' }, fmtM(o.total))))),
+    h('div', { class: 'rowbtns' }, h('button', { class: 'btn primary', type: 'button', 'data-autofocus': true, onclick: () => startParty(run.players, run.per) }, 'Rematch'), h('a', { class: 'btn', href: '#party' }, 'New party'), h('a', { class: 'btn', href: '#home' }, 'Home')));
+  $('#view').replaceChildren(view); window.scrollTo(0, 0); focusFirst();
+  if (!tie) setTimeout(() => wordBurst(order[0].name, 1, 'exact', 'Sank deepest'), 250);
+  sound('slanger');
+}
+
+/* ---------- shared results ---------- */
+function resultsView(o) {
+  setSeaDepth(o.depth || 0.85);
+  const big = h('p', { class: 'totalbig num' }, fmtM(motionOK() ? 0 : o.total));
+  if (motionOK()) setTimeout(() => countUp(big, o.total, 1400), 150);
+  const status = h('p', { class: 'msgline', role: 'status' });
+  const shareBox = o.share ? h('div', { class: 'share panel' }, h('p', { class: 'kicker' }, 'Share card · no answers in it'), h('pre', null, o.share),
+    h('button', { class: 'btn primary', type: 'button', 'data-autofocus': true, onclick: () => copyShare(o.share, shareBox, status) }, 'Copy result'), status) : null;
+  return h('div', { class: 'wrap sum' },
+    h('a', { class: 'btn small', href: o.back || '#home' }, '← ' + (o.backLabel || 'Home')),
+    h('p', { class: 'kicker', style: 'margin-top:22px' }, o.kicker),
+    h('h1', { class: 'sr' }, 'Your result'),
+    big,
+    o.lede ? h('p', { class: 'lede' }, o.lede) : null,
+    o.stats ? h('div', { class: 'stats' }, o.stats.map(s => stat(s[0], s[1]))) : null,
+    o.again ? h('div', { class: 'rowbtns' }, h('button', { class: 'btn primary', type: 'button', 'data-autofocus': o.share ? null : true, onclick: o.again }, 'Dive again'), h('a', { class: 'btn', href: '#home' }, 'Home')) : null,
+    shareBox, o.after || null,
+    o.items && o.items.length ? [h('h2', { class: 'sect' }, o.listTitle || 'The words'), h('ol', { class: 'terms' }, o.items.map(it => {
+      const p = byId(it.id), r = it.r;
+      if (!r) return h('li', { class: 'panel' }, h('h3', null, p.term), h('p', null, p.definition), h('p', null, it.note));
+      const z = zoneIndexFor(r.best);
+      return h('li', { class: 'panel' },
+        h('h3', null, p.term, h('span', { class: 'zc z' + z }, CONFIG.ZONES[z].name), r.slanger ? h('span', { class: 'chip' }, 'One in a Slanger') : null),
+        h('p', null, p.definition),
+        h('p', { class: 'num' }, fmtM(r.final) + ' · ' + r.g.length + (r.g.length === 1 ? ' guess' : ' guesses') + (r.h.length ? ' · ' + r.h.length + ' hint' + (r.h.length > 1 ? 's' : '') : '') + (r.ac ? ' · autocorrected' : '') + (r.out === 'time' ? ' · out of oxygen' : r.out === 'air' ? ' · out of guesses' : r.out === 'skip' ? ' · skipped' : '')));
+    }))] : null,
+    storageOK ? null : h('p', { class: 'store' }, 'Storage is off in this browser, so this result will be gone after a reload.'));
+}
+function showResults(o) {
+  stopClock(); P = null; document.body.classList.remove('playing');
+  document.title = o.kicker + ' · Slanger';
+  $('#view').replaceChildren(resultsView(o));
+  window.scrollTo(0, 0); focusFirst();
+  if (o.newBest && o.total > 0) setTimeout(() => wordBurst('New best', 6, 'exact', fmtM(o.total)), 300);
+}
+function stat(b, s) { return h('div', { class: 'stat panel' }, h('b', { class: 'num' }, b), h('span', null, s)); }
+function copyShare(text, box, status) {
+  const fallback = () => {
+    let ta = box.querySelector('textarea');
+    if (!ta) { ta = h('textarea', { readonly: true, 'aria-label': 'Share text, selected for copying' }); box.append(ta); }
+    ta.value = text; ta.focus(); ta.select();
+    let ok = false;
+    try { ok = document.execCommand && document.execCommand('copy'); } catch (e) { ok = false; }
+    status.textContent = ok ? 'Copied.' : 'Clipboard is blocked here. The text is selected: copy it with your keyboard or long-press.';
+  };
+  try {
+    if (!navigator.clipboard || !navigator.clipboard.writeText) return fallback();
+    navigator.clipboard.writeText(text).then(() => { status.textContent = 'Copied. Go and gloat.'; toast('Copied'); }, fallback);
+  } catch (e) { fallback(); }
+}
+
+/* ---------- Stats ---------- */
+function viewStats() {
+  document.title = 'Stats · Slanger';
+  setSeaDepth(0.55);
+  const st = S.stats, M = S.modes, total = st.hist.reduce((a, b) => a + b, 0), max = Math.max(1, ...st.hist);
+  const rate = st.played ? Math.round(st.wins / st.played * 100) + '%' : '—';
+  const avg = st.played ? fmtM(st.totalDepth / st.played) : '—';
+  const packBest = CONFIG.PACKS.filter(pk => M.packs.best[pk.key]).map(pk => pk.name + ' ' + fmtM(M.packs.best[pk.key]));
+  return h('div', { class: 'wrap page' },
+    h('p', { class: 'kicker' }, 'Stats'),
+    h('h1', { tabindex: '-1', 'data-autofocus': true }, 'Your logbook'),
+    h('p', { class: 'intro' }, st.played ? 'Daily and archive dives count towards these. A dive is a win when you find at least four of the seven words.' : 'No dives finished yet. Finish a daily dive and this fills up.'),
+    h('div', { class: 'stats' },
+      stat(String(st.played), 'dives played'), stat(rate, 'win rate'), stat(String(liveStreak()), 'current streak'), stat(String(S.streak.max), 'best streak'),
+      stat(avg, 'average depth per dive'), stat(String(st.slangers), 'first-guess Slangers'), stat(String(st.words), 'words dived, all modes'), stat(M.endless.best ? fmtM(M.endless.best) : '—', 'best Endless run')),
+    h('section', { class: 'block panel' },
+      h('h2', null, 'Where your words land'),
+      h('p', null, total ? 'The deepest zone you reached on each of ' + total + ' words, across every mode with guessing.' : 'Your zones will show here once you’ve dived a word.'),
+      h('div', { class: 'hist', role: 'table', 'aria-label': 'Words by deepest zone' },
+        CONFIG.ZONES.slice().reverse().map((z, k) => {
+          const zi = 6 - k, n = st.hist[zi], pct = total ? Math.round(n / total * 100) : 0;
+          return h('div', { class: 'row z' + zi, role: 'row', title: z.name + ': ' + n + ' words (' + pct + '%)' },
+            h('b', { role: 'rowheader' }, z.name), h('div', { class: 'trk', role: 'cell' }, h('i', { style: 'width:' + (n / max * 100) + '%' })), h('span', { class: 'num', role: 'cell' }, n + ' · ' + pct + '%'));
+        }))),
+    h('section', { class: 'block panel' },
+      h('h2', null, 'Mode bests'),
+      h('div', { class: 'stats', style: 'margin:0' },
+        stat(M.speed.best ? fmtM(M.speed.best) : '—', 'Speed Trench'), stat(M.reverse.best ? fmtM(M.reverse.best) : '—', 'Reverse Dive'),
+        stat(String(M.party.played), 'parties played'), stat(String(M.endless.played), 'Endless runs')),
+      packBest.length ? h('p', { style: 'margin-top:12px' }, 'Pack bests: ' + packBest.join(' · ')) : null));
+}
+
+/* ---------- How to play ---------- */
+function viewHow() {
+  document.title = 'How to play · Slanger';
+  setSeaDepth(0.55);
+  return h('div', { class: 'wrap page' },
+    h('h1', { 'data-autofocus': true, tabindex: '-1' }, 'How to play'),
+    h('p', { class: 'intro' }, 'Every puzzle is a slang definition. You get six guesses and sixty seconds of oxygen to name the word. Each guess sinks you as deep as it deserves, and you never float back up.'),
+    h('div', { class: 'steps' },
+      step(IC.read, 'Read', 'A definition and an example sentence, with the word blacked out.'),
+      step(IC.dive, 'Guess', 'Type a word and press Dive. Close in meaning sinks you deep. Way off barely gets your feet wet.'),
+      step(IC.clock, 'Breathe', 'Sixty seconds of oxygen per word. Run out and the word surfaces without you. Solve it fast and the oxygen you saved adds depth.')),
+    h('section', { class: 'block panel' }, h('h2', null, 'The zones'),
+      h('p', null, 'Depth is scored 0 to 100 and shown in metres. Zones are always named, never just coloured.'),
+      h('ol', { class: 'ladder' }, CONFIG.ZONES.map((z, k) => h('li', { class: 'z' + k }, h('span', { class: 'sw' }), h('b', null, z.name), h('span', { class: 'num' }, k === 6 ? fmtM(z.d1) + ' · exact' : fmtM(z.d0) + '–' + fmtM(z.d1)))))),
+    h('section', { class: 'block panel' }, h('h2', null, 'What counts as close'),
+      h('div', { class: 'tiers' },
+        tierBox('Exact', 'The word itself, any accepted spelling. Straight to the Slanger.'),
+        tierBox('Same meaning', 'Real synonyms, other slang for the same thing. Lingo and Vernacular.'),
+        tierBox('Right neighbourhood', 'Same feeling or category. Jargon.'),
+        tierBox('Right world', 'Right topic, wrong meaning. Buzzword.')),
+      h('p', null, 'Anything else gets a best guess from the game’s own slang dictionary, capped well short of the bottom.')),
+    h('section', { class: 'block panel' }, h('h2', null, 'The autocorrect is not your friend'),
+      h('p', null, 'Misspell the answer by a letter and Slanger will fix it for you, grudgingly. It counts as solved, but lands at Lingo, never the Slanger, and earns no bonuses.'),
+      h('ul', null, h('li', null, 'Only for words of five letters or more, and only if the first letter is right.'), h('li', null, 'One slip allowed, two for long words. Real words are never “corrected”.'), h('li', null, 'Short words get no help at all. Spell “lit” properly.'))),
+    h('section', { class: 'block panel' }, h('h2', null, 'Hints and scoring'),
+      h('ul', null, CONFIG.HINTS.map(x => h('li', null, x.label + ' costs ' + fmtM(x.cost) + ' off that puzzle’s score.')),
+        h('li', null, 'Take any hint and that puzzle can’t score more than ' + fmtM(CONFIG.HINT_CAP) + '.'),
+        h('li', null, 'Solve with guesses to spare: each one adds ' + fmtM(CONFIG.BONUS_PER_SPARE_GUESS) + '.'),
+        h('li', null, 'Every second of oxygen left adds ' + fmtM(CONFIG.TIME_BONUS_PER_SEC) + '.'),
+        h('li', null, 'Exact on the very first guess, no hints: that’s one in a slanger.'))),
+    h('section', { class: 'block panel' }, h('h2', null, 'The other modes'),
+      h('ul', null, MODE_CARDS.slice(1, 7).map(m => h('li', null, h('b', null, m.t + ': '), m.d)))),
+    h('p', { style: 'margin-top:20px' }, h('a', { class: 'btn primary', href: '#daily' }, 'Go dive')));
+}
+function step(ic, t, d) { return h('div', { class: 'panel' }, h('div', { html: ic, 'aria-hidden': 'true' }), h('h3', null, t), h('p', null, d)); }
+function tierBox(t, d) { return h('div', null, h('b', null, t), h('span', null, d)); }
+
+/* ---------- Options ---------- */
+function viewOptions() {
+  document.title = 'Options · Slanger';
+  setSeaDepth(0.6);
+  const todayRun = S.runs[todayStr()];
+  const opt = (key, title, desc) => {
+    const btn = h('button', { class: 'sw2', type: 'button', role: 'switch', 'aria-checked': String(!!S.settings[key]), 'aria-label': title,
+      onclick: () => { S.settings[key] = !S.settings[key]; save(); applySettings(); btn.setAttribute('aria-checked', String(!!S.settings[key])); if (key === 'sound' && S.settings.sound) sound('ding', 95); } });
+    return h('div', { class: 'opt' }, h('div', null, h('b', null, title), h('p', null, desc)), btn);
+  };
+  return h('div', { class: 'wrap page' },
+    h('h1', { 'data-autofocus': true, tabindex: '-1' }, 'Options'),
+    h('section', { class: 'block panel' },
+      opt('filter', 'Hide crude puzzles', 'Skips puzzles flagged as mildly crude. On by default.' + (todayRun ? ' Changes apply from your next daily dive.' : '')),
+      opt('sound', 'Sound', 'Bells for close guesses and the big ding when you nail it. On by default.'),
+      opt('reducedMotion', 'Reduce motion', 'Stops the moving sea, bursts, flips and flashes. Your system setting is respected either way.'),
+      opt('highContrast', 'High contrast', 'Solid black panels and white text over a darkened sea.')),
+    h('section', { class: 'block panel' },
+      h('h2', null, 'Your data'),
+      h('p', null, storageOK ? 'Progress is saved in this browser only. Nothing leaves your device.' : 'Storage is unavailable in this browser, so the game still plays but forgets everything when you leave.'),
+      h('button', { class: 'btn danger', type: 'button', onclick: confirmReset }, 'Reset all data')),
+    h('p', { class: 'store' }, 'Slanger · build 2 · ' + PUZZLES.length + ' words · definitions written for this game, not copied from anywhere.'));
+}
+function confirmReset() {
+  openModal('Reset everything?', 'Your streak, stats, settings, mode bests and any dive in progress will be wiped from this browser. This can’t be undone.', [
+    { label: 'Cancel', cls: 'btn', fn: closeModal },
+    { label: 'Reset', cls: 'btn danger', fn: () => { S = freshState(); REV = null; save(); applySettings(); closeModal(); toast('All data reset'); go('#home'); } }
+  ]);
+}
+
+/* =====================================================================
+   RENDER — tiny DOM helpers. Player text only ever goes in as text nodes.
+   ===================================================================== */
+function $(s) { return document.querySelector(s); }
+function h(tag, attrs) {
+  const el = document.createElement(tag);
+  if (attrs) for (const k in attrs) {
+    const v = attrs[k];
+    if (v == null || v === false) continue;
+    if (k === 'class') el.className = v;
+    else if (k === 'html') el.innerHTML = v; // static SVG constants only
+    else if (k === 'style') el.style.cssText = v;
+    else if (k.slice(0, 2) === 'on') el.addEventListener(k.slice(2), v);
+    else el.setAttribute(k, v === true ? '' : v);
+  }
+  const add = c => { if (c == null || c === false) return; if (Array.isArray(c)) c.forEach(add); else el.append(c instanceof Node ? c : document.createTextNode(String(c))); };
+  for (let i = 2; i < arguments.length; i++) add(arguments[i]);
+  return el;
+}
+function fitText(el) {
+  if (!el) return;
+  el.style.fontSize = '';
+  let fs = parseFloat(getComputedStyle(el).fontSize);
+  while (el.scrollWidth > el.clientWidth + 1 && fs > 22) { fs -= 2; el.style.fontSize = fs + 'px'; }
+}
+function announce(t) { const l = $('#live'); l.textContent = ''; setTimeout(() => { l.textContent = t; }, 60); }
+function toast(t) { const el = $('#toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toast._t); toast._t = setTimeout(() => el.classList.remove('on'), 1700); }
+function hms(ms) { const s = Math.max(0, Math.floor(ms / 1000)); const p = n => String(n).padStart(2, '0'); return p(Math.floor(s / 3600)) + ':' + p(Math.floor(s / 60) % 60) + ':' + p(s % 60); }
+function tick(fn) { fn(); TIMERS.push(setInterval(fn, 1000)); }
+let modalReturn = null;
+function openModal(title, body, actions) {
+  const m = $('#modal');
+  modalReturn = document.activeElement;
+  $('#mtitle').textContent = title; $('#mbody').textContent = body;
+  $('#mrow').replaceChildren(...actions.map(a => h('button', { class: a.cls, type: 'button', onclick: a.fn }, a.label)));
+  m.hidden = false;
+  m.querySelector('#mrow button').focus();
+}
+function closeModal() { $('#modal').hidden = true; if (modalReturn && modalReturn.isConnected) modalReturn.focus(); }
+function applySettings() {
+  document.documentElement.classList.toggle('rm', !!S.settings.reducedMotion);
+  document.documentElement.classList.toggle('hc', !!S.settings.highContrast);
+  if (FX.c) { if (motionOK()) ensureLoop(); else frameStatic(); }
+}
+const IC = {
+  back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>',
+  down: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v15M6 12l6 6 6-6"/><path d="M5 21h14"/></svg>',
+  dive: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6c2 1.5 4 1.5 6 0s4-1.5 6 0 4 1.5 6 0"/><circle cx="12" cy="13" r="2.2"/><path d="M12 15.2V21M9 18l3 3 3-3"/></svg>',
+  how: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.6 2.6 0 1 1 3.4 2.5c-.6.2-.9.8-.9 1.4V14"/><circle cx="12" cy="17.3" r=".6" fill="currentColor"/></svg>',
+  opts: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>',
+  read: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 5h16v14H4z"/><path d="M7 9h10M7 13h4"/><rect x="12" y="11.5" width="5" height="3" rx="1" fill="currentColor"/></svg>',
+  loop: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6.5 9a3.5 3.5 0 1 0 0 6c2.5 0 3.5-3 5.5-3s3 3 5.5 3a3.5 3.5 0 1 0 0-6c-2.5 0-3.5 3-5.5 3S9 9 6.5 9z"/></svg>',
+  clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="13" r="8"/><path d="M12 13l3-3M10 2h4"/></svg>',
+  swap: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4L3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7"/></svg>',
+  party: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="8" cy="9" r="3"/><circle cx="16" cy="9" r="3"/><path d="M2 20c0-3 3-5 6-5s6 2 6 5M14 15c3 0 8 1 8 5"/></svg>',
+  grid: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>',
+  cal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>',
+  bars: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 20V12M12 20V5M19 20v-9"/></svg>'
+};
+
+/* =====================================================================
+   ANIMATION — the live sea (canvas), word bursts, count-ups, sound.
+   Everything checks motionOK(); reduced motion draws one still frame.
+   ===================================================================== */
+const SVG = {
+  diver: '<svg viewBox="0 0 48 48" role="img" aria-label="Diver"><path d="M10 22 L2 17 L4 24.5 L2 32 L10 27Z" fill="#3ff5e0"/><path d="M10 22 Q22 16 34 20 L35 26 Q22 30 10 27Z" fill="#f2fbff"/><rect x="14" y="13" width="14" height="6" rx="3" fill="#ffcf3d"/><circle cx="39" cy="22.5" r="5.5" fill="#f2fbff"/><rect x="39.5" y="19" width="6" height="5" rx="1.5" fill="#0a72aa"/><path d="M30 24 L41 31" stroke="#f2fbff" stroke-width="2.6" stroke-linecap="round"/><circle cx="44" cy="12" r="1.8" fill="none" stroke="#f2fbff" stroke-width="1"/><circle cx="46" cy="6" r="1.2" fill="none" stroke="#f2fbff" stroke-width="1"/></svg>',
+  fish: '<svg viewBox="0 0 80 40"><g fill="#ffcf3d"><path d="M10 10 Q18 4 26 10 Q18 16 10 10Z M10 10 L4 5 L5 10 L4 15Z"/><path d="M36 20 Q44 14 52 20 Q44 26 36 20Z M36 20 L30 15 L31 20 L30 25Z"/><path d="M14 30 Q22 24 30 30 Q22 36 14 30Z M14 30 L8 25 L9 30 L8 35Z"/><path d="M56 10 Q64 4 72 10 Q64 16 56 10Z M56 10 L50 5 L51 10 L50 15Z"/><path d="M52 31 Q60 25 68 31 Q60 37 52 31Z M52 31 L46 26 L47 31 L46 36Z"/></g></svg>',
+  jelly: '<svg viewBox="0 0 40 52"><path d="M4 20 Q4 3 20 3 Q36 3 36 20 Q30 17 26 20 Q20 17 14 20 Q10 17 4 20Z" fill="#ff7a3d" opacity=".9"/><g fill="none" stroke="#ffc59a" stroke-width="1.6" stroke-linecap="round"><path d="M9 20 q-3 8 0 15 q3 8 0 15"/><path d="M16 20 q3 8 0 15 q-3 7 0 13"/><path d="M24 20 q-3 8 0 15 q3 7 0 13"/><path d="M31 20 q3 8 0 15 q-3 8 0 15"/></g><circle cx="15" cy="11" r="2.5" fill="#fff" opacity=".5"/></svg>',
+  angler: '<svg viewBox="0 -8 66 52"><circle cx="54" cy="-1" r="7" fill="#fff7a8" opacity=".25"/><path d="M36 8 Q40 -4 54 -1" fill="none" stroke="#3ee07a" stroke-width="1.6"/><circle cx="54" cy="-1" r="3" fill="#fff7a8"/><path d="M8 24 L0 14 L2 24 L0 34Z" fill="#2e8a4a"/><path d="M8 24 Q10 8 32 8 Q52 8 58 22 Q52 38 32 38 Q12 38 8 24Z" fill="#3ee07a"/><path d="M44 25 L58 25 L56 33 Q48 34 44 30Z" fill="#06240f"/><path d="M45 25 L47 29 L49 25 L51 29 L53 25 L55 29 L57 25" fill="none" stroke="#fff" stroke-width="1.2"/><circle cx="45" cy="16" r="3.2" fill="#06240f"/><circle cx="46" cy="15" r="1" fill="#fff"/></svg>',
+  squid: '<svg viewBox="0 0 76 34"><path d="M76 17 L66 9 L66 25Z" fill="#1a7fc6"/><path d="M70 17 L48 6 Q22 6 20 17 Q22 28 48 28Z" fill="#2fb4ff"/><circle cx="26" cy="14" r="2.4" fill="#05223a"/><g fill="none" stroke="#9adfff" stroke-width="1.8" stroke-linecap="round"><path d="M20 13 Q10 8 1 10"/><path d="M20 16 Q10 15 2 18"/><path d="M20 19 Q10 21 3 26"/><path d="M20 21 Q12 27 6 32"/></g></svg>',
+  snail: '<svg viewBox="0 0 60 30"><path d="M52 15 Q52 5 40 5 Q26 6 15 13 Q7 16 0 15 Q7 18 15 19 Q26 25 40 25 Q52 25 52 15Z" fill="#d7a8ff" opacity=".9"/><circle cx="45" cy="12" r="2.2" fill="#2a0f3d"/><path d="M28 9 Q30 15 28 21" fill="none" stroke="#fff" stroke-width="1" opacity=".5"/></svg>',
+  letters: '<svg viewBox="0 0 100 56"><g fill="#3ff5e0" font-family="ui-rounded,system-ui,sans-serif" font-weight="900"><text x="4" y="22" font-size="16">s</text><text x="20" y="40" font-size="13">l</text><text x="30" y="18" font-size="18">a</text><text x="48" y="44" font-size="15">n</text><text x="58" y="20" font-size="17">g</text><text x="74" y="38" font-size="14">e</text><text x="86" y="16" font-size="16">r</text></g><g fill="#d8fffb"><circle cx="14" cy="46" r="1.4"/><circle cx="40" cy="30" r="1"/><circle cx="68" cy="50" r="1.3"/><circle cx="92" cy="30" r="1"/><circle cx="54" cy="6" r="1.1"/></g></svg>'
+};
+const ZONE_HEX = ['#c6f4ff', '#ffcf3d', '#ff7a3d', '#3ee07a', '#2fb4ff', '#a46bff', '#3ff5e0'];
+const ZONE_CREATURE = [null, 'fish', 'jelly', 'angler', 'squid', 'snail', 'letters'];
+function zoneColor(zi) { return ZONE_HEX[zi] || '#fff'; }
+function motionOK() {
+  let sys = false;
+  try { sys = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { sys = false; }
+  return !S.settings.reducedMotion && !sys;
+}
+const FX = { cv: null, c: null, w: 0, h: 0, dpr: 1, f: 0.36, target: 0.36, v: 0, t: 0, last: 0, run: false, snow: [], bubs: [], parts: [] };
+function initFX() {
+  FX.cv = $('#fx');
+  try { FX.c = FX.cv.getContext('2d'); } catch (e) { FX.c = null; }
+  if (!FX.c) return;
+  const size = () => {
+    FX.dpr = Math.min(2, window.devicePixelRatio || 1); FX.w = innerWidth; FX.h = innerHeight;
+    FX.cv.width = Math.round(FX.w * FX.dpr); FX.cv.height = Math.round(FX.h * FX.dpr);
+    FX.c.setTransform(FX.dpr, 0, 0, FX.dpr, 0, 0);
+    if (!motionOK()) frameStatic();
+  };
+  size(); window.addEventListener('resize', size);
+  const n = Math.round(Math.min(150, FX.w * FX.h / 9000));
+  for (let i = 0; i < n; i++) { const L = [0.35, 0.65, 1][i % 3]; FX.snow.push({ x: Math.random() * FX.w, y: Math.random() * FX.h, r: 0.6 + L * 1.3 * Math.random() + 0.3, L, a: 0.25 + L * 0.45 * Math.random() }); }
+  const letters = 'slangerwordsxyzq';
+  for (let i = 0; i < 26; i++) FX.bubs.push(newBubble(true, i % 7 === 0 ? letters[i % letters.length] : null));
+  if (motionOK()) ensureLoop(); else frameStatic();
+}
+function newBubble(anywhere, letter) {
+  const r = letter ? 9 + Math.random() * 6 : 1.5 + Math.random() * Math.random() * 9;
+  return { x: Math.random() * FX.w, y: anywhere ? Math.random() * FX.h : FX.h + 20 + Math.random() * 60, r, spd: 22 + r * 5 + Math.random() * 20, ph: Math.random() * 6.28, amp: 4 + Math.random() * 10, L: letter };
+}
+function setSeaDepth(f, instant) {
+  FX.target = Math.max(0, Math.min(1, f));
+  if (instant || !motionOK()) { FX.f = FX.target; FX.v = 0; }
+  if (!FX.c) { applyWater(); return; }
+  if (motionOK()) ensureLoop(); else frameStatic();
+}
+function ensureLoop() { if (!FX.run && FX.c) { FX.run = true; FX.last = performance.now(); requestAnimationFrame(loop); } }
+function loop(now) {
+  if (!motionOK()) { FX.run = false; frameStatic(); return; }
+  const dt = Math.min(0.05, (now - FX.last) / 1000); FX.last = now; FX.t += dt;
+  const a = (FX.target - FX.f) * 10 - FX.v * 5.2;   // a touch under-damped: overshoots then settles
+  FX.v += a * dt; FX.f += FX.v * dt;
+  applyWater(); draw(dt);
+  requestAnimationFrame(loop);
+}
+function applyWater() {
+  const f = Math.max(0, Math.min(1, FX.f));
+  const w = $('#sea .water'); if (w) w.style.backgroundPosition = '50% ' + (f * 100).toFixed(2) + '%';
+  const cs = $('#sea .caustic'); if (cs) cs.style.opacity = String(Math.max(0, 0.38 - f * 1.2));
+  const fl = $('#sea .floor'); if (fl) fl.style.opacity = String(Math.max(0, Math.min(1, (f - 0.62) / 0.33)));
+}
+function frameStatic() { if (!FX.c) return; applyWater(); draw(0); }
+function draw(dt) {
+  const c = FX.c, W = FX.w, H = FX.h, f = Math.max(0, Math.min(1, FX.f)), t = FX.t;
+  c.clearRect(0, 0, W, H);
+  // light shafts, fading with depth
+  const ra = Math.max(0, 0.2 - f * 0.45);
+  if (ra > 0.005) {
+    c.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 6; i++) {
+      const x0 = W * (0.05 + i * 0.18) + Math.sin(t * 0.25 + i * 1.7) * 50, spread = 90 + i * 25 + Math.sin(t * 0.4 + i) * 40;
+      const g = c.createLinearGradient(0, 0, 0, H * 0.95);
+      g.addColorStop(0, 'rgba(190,255,250,' + (ra * (0.6 + 0.4 * Math.sin(t * 0.6 + i * 2))).toFixed(3) + ')'); g.addColorStop(1, 'rgba(190,255,250,0)');
+      c.fillStyle = g; c.beginPath(); c.moveTo(x0 - 14, -10); c.lineTo(x0 + 26, -10); c.lineTo(x0 + spread + 60, H * 0.95); c.lineTo(x0 + spread - 30, H * 0.95); c.closePath(); c.fill();
+    }
+  }
+  // marine snow: drifts down at rest, streaks upward as you sink
+  c.globalCompositeOperation = 'source-over';
+  const rush = FX.v * H * 1.6;
+  c.lineCap = 'round';
+  for (const p of FX.snow) {
+    const vy = 7 * p.L - rush * p.L;
+    p.y += vy * dt; p.x += Math.sin(t * 0.5 + p.y * 0.01) * 3 * dt * p.L;
+    if (p.y < -30) { p.y = H + 20; p.x = Math.random() * W; } else if (p.y > H + 30) { p.y = -20; p.x = Math.random() * W; }
+    const len = Math.min(70, Math.abs(vy) * 0.06);
+    c.strokeStyle = c.fillStyle = 'rgba(215,240,255,' + (p.a * (0.5 + f * 0.6)).toFixed(3) + ')';
+    if (len > 2) { c.lineWidth = p.r; c.beginPath(); c.moveTo(p.x, p.y); c.lineTo(p.x, p.y + (vy < 0 ? len : -len)); c.stroke(); }
+    else { c.beginPath(); c.arc(p.x, p.y, p.r, 0, 6.283); c.fill(); }
+  }
+  // bubbles
+  for (let i = 0; i < FX.bubs.length; i++) {
+    const b = FX.bubs[i];
+    b.y -= (b.spd + Math.max(0, rush) * 0.35) * dt;
+    const x = b.x + Math.sin(t * 2 + b.ph) * b.amp;
+    if (b.y < -30) FX.bubs[i] = newBubble(false, b.L);
+    const g = c.createRadialGradient(x - b.r * 0.35, b.y - b.r * 0.4, b.r * 0.1, x, b.y, b.r);
+    g.addColorStop(0, 'rgba(255,255,255,.75)'); g.addColorStop(0.45, 'rgba(190,245,255,.12)'); g.addColorStop(0.9, 'rgba(190,245,255,.22)'); g.addColorStop(1, 'rgba(230,252,255,.6)');
+    c.fillStyle = g; c.beginPath(); c.arc(x, b.y, b.r, 0, 6.283); c.fill();
+    if (b.L) { c.fillStyle = 'rgba(235,253,255,.85)'; c.font = '900 ' + Math.round(b.r * 1.1) + 'px ui-rounded,system-ui,sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(b.L, x, b.y + 1); }
+  }
+  // burst particles
+  if (FX.parts.length) {
+    c.globalCompositeOperation = 'lighter';
+    c.textAlign = 'center'; c.textBaseline = 'middle';
+    FX.parts = FX.parts.filter(p => (p.life -= dt) > 0);
+    for (const p of FX.parts) {
+      p.vx *= 1 - 1.6 * dt; p.vy = p.vy * (1 - 1.6 * dt) - 40 * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.rot += p.vr * dt;
+      const a = Math.min(1, p.life / p.max * 1.4);
+      c.globalAlpha = a; c.fillStyle = p.col;
+      if (p.g) { c.save(); c.translate(p.x, p.y); c.rotate(p.rot); c.font = '900 ' + p.s + 'px ui-rounded,system-ui,sans-serif'; c.fillText(p.g, 0, 0); c.restore(); }
+      else { c.beginPath(); c.arc(p.x, p.y, p.s * 0.18, 0, 6.283); c.fill(); }
+    }
+    c.globalAlpha = 1; c.globalCompositeOperation = 'source-over';
+  }
+}
+FX.burst = (x, y, col, n, glyphs) => {
+  if (!FX.c || !motionOK()) return;
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * 6.283, sp = 140 + Math.random() * 520;
+    FX.parts.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp * 0.8, life: 0.9 + Math.random() * 1.1, max: 2, col: Math.random() < 0.25 ? '#ffffff' : col,
+      g: glyphs && Math.random() < 0.6 ? glyphs[Math.floor(Math.random() * glyphs.length)] : null, s: 12 + Math.random() * 22, rot: Math.random() * 6, vr: (Math.random() - 0.5) * 8 });
+  }
+  ensureLoop();
+};
+/* the big moment: letters spring in, rings blast out, sea sparks */
+function wordBurst(text, zi, level, kick) {
+  const host = $('#burst');
+  host.replaceChildren();
+  const hold = level === 'slanger' ? 2.1 : level === 'exact' ? 1.45 : 1.0;
+  const wrap = h('div', { class: 'wb ' + level + ' z' + zi, style: '--hold:' + hold + 's' });
+  const word = h('div', { class: 'word' });
+  let i = 0;
+  String(text).split(/\s+/).forEach(w => { const ws = h('span', { class: 'w' }); [...w].forEach(ch => ws.append(h('span', { class: 'l', style: '--i:' + (i++) }, ch))); word.append(ws, ' '); });
+  const kt = kick || (level === 'slanger' ? 'ONE IN A SLANGER' : level === 'exact' ? 'BANG ON · SLANGER' : CONFIG.ZONES[zi].name.toUpperCase() + ' · SO CLOSE');
+  wrap.append(word, h('div', { class: 'kick' }, kt));
+  host.append(h('div', { class: 'scrim ' + level, style: 'animation-duration:' + (hold + 0.6) + 's' }));
+  const rings = level === 'close' ? 1 : level === 'exact' ? 3 : 5;
+  for (let k = 0; k < rings; k++) host.append(h('span', { class: 'ring z' + zi, style: '--d:' + (k * 0.16) + 's' }));
+  host.append(wrap);
+  fitText(word);
+  if (motionOK()) {
+    const glyphs = [...String(text).replace(/\s/g, '')];
+    FX.burst(innerWidth / 2, innerHeight / 2, zoneColor(zi), level === 'close' ? 50 : level === 'exact' ? 130 : 220, glyphs);
+    if (level !== 'close') {
+      const app = $('#app'); app.classList.remove('shake'); void app.offsetWidth; app.classList.add('shake'); setTimeout(() => app.classList.remove('shake'), 600);
+      const fl = $('#flash'); fl.classList.remove('on'); void fl.offsetWidth; fl.classList.add('on');
+      if (level === 'slanger') { drift(6); setTimeout(() => drift(6), 600); setTimeout(() => FX.burst(innerWidth / 2, innerHeight / 2, '#ffffff', 120, glyphs), 450); }
+    }
+  }
+  clearTimeout(wordBurst._t);
+  wordBurst._t = setTimeout(() => host.replaceChildren(), (hold + 0.6) * 1000);
+}
+function drift(zi) {
+  const kind = ZONE_CREATURE[zi];
+  if (!kind || !motionOK()) return;
+  const el = h('div', { style: 'position:absolute;left:0;top:' + (16 + Math.random() * 60).toFixed(0) + '%;width:' + (kind === 'letters' ? 190 : 140) + 'px;filter:drop-shadow(0 0 8px rgba(63,245,224,.4));pointer-events:none', html: SVG[kind] });
+  $('#sea').insertBefore(el, $('#sea .vignette'));
+  const anim = el.animate([{ transform: 'translateX(-200px)' }, { transform: 'translateX(' + (innerWidth + 60) + 'px)' }], { duration: 8000 + Math.random() * 3000, easing: 'linear' });
+  anim.onfinish = () => el.remove();
+  el.firstChild.setAttribute('style', 'width:100%;height:auto;display:block');
+}
+function countUp(el, to, ms) {
+  if (!motionOK()) { el.textContent = fmtM(to); return; }
+  const t0 = performance.now();
+  const step = t => { const k = Math.min(1, (t - t0) / ms), e = 1 - Math.pow(1 - k, 3); el.textContent = fmtM(to * e); if (k < 1) requestAnimationFrame(step); };
+  requestAnimationFrame(step);
+}
+
+/* ---------- sound: synthesised bells with a watery echo, no files ---------- */
+let AU = null;
+function audio() {
+  if (AU) return AU;
+  const C = window.AudioContext || window.webkitAudioContext;
+  if (!C) return null;
+  const ctx = new C(), master = ctx.createGain(), comp = ctx.createDynamicsCompressor();
+  master.gain.value = 0.55; master.connect(comp); comp.connect(ctx.destination);
+  const delay = ctx.createDelay(1), fb = ctx.createGain(), lp = ctx.createBiquadFilter(), wet = ctx.createGain();
+  delay.delayTime.value = 0.21; fb.gain.value = 0.34; lp.type = 'lowpass'; lp.frequency.value = 2200; wet.gain.value = 0.4;
+  delay.connect(lp); lp.connect(fb); fb.connect(delay); lp.connect(wet); wet.connect(master);
+  AU = { ctx, master, send: delay };
+  return AU;
+}
+function bell(A, f, t, g, dur) {
+  const nyq = A.ctx.sampleRate / 2 - 500;
+  [[1, 1], [2, 0.55], [2.76, 0.42], [5.4, 0.2], [8.93, 0.08]].forEach(([ratio, amp]) => {
+    if (f * ratio > nyq) return;
+    const o = A.ctx.createOscillator(), gn = A.ctx.createGain(), end = t + dur / Math.pow(ratio, 0.55);
+    o.type = 'sine'; o.frequency.setValueAtTime(f * ratio, t);
+    gn.gain.setValueAtTime(0.0001, t); gn.gain.exponentialRampToValueAtTime(g * amp, t + 0.006); gn.gain.exponentialRampToValueAtTime(0.0001, end);
+    o.connect(gn); gn.connect(A.master); gn.connect(A.send); o.start(t); o.stop(end + 0.05);
+  });
+}
+function thump(A, t, g) {
+  const o = A.ctx.createOscillator(), gn = A.ctx.createGain();
+  o.type = 'sine'; o.frequency.setValueAtTime(130, t); o.frequency.exponentialRampToValueAtTime(38, t + 0.5);
+  gn.gain.setValueAtTime(0.0001, t); gn.gain.exponentialRampToValueAtTime(g, t + 0.01); gn.gain.exponentialRampToValueAtTime(0.0001, t + 0.6);
+  o.connect(gn); gn.connect(A.master); o.start(t); o.stop(t + 0.65);
+}
+function whoosh(A, t, g, from, to, dur) {
+  const len = Math.floor(A.ctx.sampleRate * dur), buf = A.ctx.createBuffer(1, len, A.ctx.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+  const src = A.ctx.createBufferSource(), bp = A.ctx.createBiquadFilter(), gn = A.ctx.createGain();
+  src.buffer = buf; bp.type = 'bandpass'; bp.Q.value = 1.4; bp.frequency.setValueAtTime(from, t); bp.frequency.exponentialRampToValueAtTime(to, t + dur);
+  gn.gain.setValueAtTime(0.0001, t); gn.gain.exponentialRampToValueAtTime(g, t + 0.05); gn.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  src.connect(bp); bp.connect(gn); gn.connect(A.master); gn.connect(A.send); src.start(t); src.stop(t + dur + 0.05);
+}
+function sound(kind, arg) {
+  if (!S.settings.sound) return;
+  try {
+    const A = audio(); if (!A) return;
+    if (A.ctx.state === 'suspended') A.ctx.resume();
+    const t = A.ctx.currentTime + 0.02;
+    if (kind === 'dive') { whoosh(A, t, 0.22, 1400, 260, 0.55); thump(A, t, 0.18 + (arg || 0) / 400); }
+    else if (kind === 'ding') { const base = arg >= 90 ? 1318.5 : 1046.5; whoosh(A, t, 0.14, 2400, 600, 0.4); bell(A, base, t, 0.34, 2.2); bell(A, base * 1.5, t + 0.09, 0.22, 1.9); bell(A, base * 2, t + 0.18, 0.12, 1.4); }
+    else if (kind === 'exact' || kind === 'slanger') {
+      thump(A, t, 0.6); whoosh(A, t, 0.25, 3000, 400, 0.8); bell(A, 523.25, t, 0.28, 3.2);
+      [1046.5, 1318.5, 1568, 2093].forEach((f, i) => bell(A, f, t + i * 0.085, 0.3, 2.8));
+      if (kind === 'slanger') { [2093, 2637, 3136, 4186].forEach((f, i) => bell(A, f, t + 0.42 + i * 0.07, 0.18, 2.6)); bell(A, 784, t + 0.42, 0.25, 3.4); thump(A, t + 0.42, 0.45); }
+    }
+    else if (kind === 'tick') bell(A, arg <= 3 ? 1760 : 1320, t, arg <= 3 ? 0.16 : 0.08, 0.25);
+    else if (kind === 'timeout') { whoosh(A, t, 0.3, 900, 120, 1.1); bell(A, 392, t, 0.3, 1.8); bell(A, 311.1, t + 0.28, 0.3, 2.2); }
+    else if (kind === 'wrong') { bell(A, 233, t, 0.26, 0.7); bell(A, 220, t + 0.12, 0.22, 0.8); }
+    else if (kind === 'surface') { whoosh(A, t, 0.2, 300, 2600, 0.9); [784, 988, 1175, 1568].forEach((f, i) => bell(A, f, t + 0.2 + i * 0.1, 0.22, 2)); }
+  } catch (e) { /* no audio, no problem */ }
+}
+function heroSVG() {
+  let bands = '';
+  CONFIG.ZONES.slice(0, 6).forEach((z, k) => {
+    const y = 18 + k * 32;
+    bands += '<line x1="16" x2="344" y1="' + y + '" y2="' + y + '" stroke="' + ZONE_HEX[k] + '" stroke-opacity=".5" stroke-dasharray="3 5"/>' +
+      '<text x="340" y="' + (y + 16) + '" text-anchor="end" font-size="12.5" font-weight="900" fill="' + ZONE_HEX[k] + '">' + z.name + '</text>';
+  });
+  const strip = (s, w, hgt) => s.replace(/^<svg viewBox="([^"]+)"[^>]*>/, '<svg width="' + w + '" height="' + hgt + '" viewBox="$1">');
+  return '<svg viewBox="0 0 360 260"><defs><linearGradient id="hg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#38d6e6"/><stop offset=".22" stop-color="#0a72aa"/><stop offset=".55" stop-color="#0a2468"/><stop offset=".8" stop-color="#08093a"/><stop offset="1" stop-color="#010008"/></linearGradient><radialGradient id="hglow" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#3ff5e0" stop-opacity=".7"/><stop offset="1" stop-color="#3ff5e0" stop-opacity="0"/></radialGradient><linearGradient id="ray" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d2fffb" stop-opacity=".35"/><stop offset="1" stop-color="#d2fffb" stop-opacity="0"/></linearGradient></defs>' +
+    '<rect width="360" height="260" fill="url(#hg)"/><path d="M40 0 L70 0 L150 200 L100 200Z M140 0 L160 0 L230 180 L200 180Z M230 0 L262 0 L330 170 L290 170Z" fill="url(#ray)"/>' +
+    '<g font-family="system-ui,sans-serif">' + bands + '</g>' +
+    '<ellipse cx="160" cy="240" rx="150" ry="40" fill="url(#hglow)"/>' +
+    '<g transform="translate(84 200)">' + strip(SVG.letters, 150, 60) + '</g>' +
+    '<g class="bob"><g transform="translate(112 66) rotate(58 32 32)">' + strip(SVG.diver, 72, 72) + '</g></g>' +
+    '<g class="pulse"><g transform="translate(232 98)">' + strip(SVG.jelly, 38, 50) + '</g></g>' +
+    '<g fill="none" stroke="#f2fbff" stroke-opacity=".75"><circle cx="184" cy="56" r="4"/><circle cx="192" cy="40" r="3"/><circle cx="186" cy="24" r="5.5"/><circle cx="60" cy="122" r="7"/><circle cx="286" cy="186" r="6"/></g>' +
+    '<g font-family="ui-rounded,system-ui,sans-serif" font-weight="900" fill="#f2fbff" fill-opacity=".85" font-size="10" text-anchor="middle"><text x="186" y="27.5">w</text><text x="60" y="125.5">a</text><text x="286" y="189.5">z</text></g></svg>';
+}
+
+/* =====================================================================
+   SELFTEST — inert unless you run SLANGER.SELFTEST() in the console.
+   ===================================================================== */
+function SELFTEST() {
+  const out = []; let fails = 0;
+  const ok = (c, m) => { out.push((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++; };
+  let bad = [];
+  PUZZLES.forEach(p => p.exact.forEach(e => { if (scoreGuess(e, p).score !== 100) bad.push(p.term + ':' + e); }));
+  ok(!bad.length, 'every exact spelling scores 100' + (bad.length ? ' — ' + bad.join(', ') : ''));
+  bad = [];
+  PUZZLES.forEach(p => ['hot', 'warm', 'cool'].forEach(t => (p.tiers[t] || []).forEach(e => {
+    const s = scoreGuess(parseEntry(e).text, p).score, [lo, hi] = BANDS[t];
+    if (s < lo || s > hi) bad.push(p.term + ':' + e + '=' + s);
+  })));
+  ok(!bad.length, 'every tier entry lands in its own band' + (bad.length ? ' — ' + bad.slice(0, 8).join(', ') : ''));
+  let max = 0, n = 0;
+  PUZZLES.forEach(p => { for (const k of LEXICON.keys()) { const r = scoreGuess(k, p); if (r.reason.indexOf('fallback') === 0) { n++; max = Math.max(max, r.score); } } });
+  ['qwerty', 'banana bread', 'very tired indeed', 'zzzz'].forEach(g => PUZZLES.forEach(p => { const r = scoreGuess(g, p); if (r.reason.indexOf('fallback') === 0) max = Math.max(max, r.score); }));
+  ok(max <= 70, 'heuristic fallback never exceeds 70 (max ' + max + ' over ' + n + ' lexicon checks)');
+  const p1 = PUZZLES[0], seq = ['pub', 'tipsy', 'qwerty', 'wasted', 'drunk', 'hammered'];
+  let best = 0, mono = true;
+  seq.forEach(g => { const d = scoreGuess(g, p1).depth; const nb = Math.max(best, d); if (nb < best) mono = false; best = nb; });
+  for (let s = 1; s <= 100; s++) if (scoreToDepth(s) < scoreToDepth(s - 1)) mono = false;
+  ok(mono, 'diver depth never decreases within a round, and depth rises with score');
+  const a = dailyPuzzles('2026-11-23', true), b = dailyPuzzles('2026-11-23', true);
+  ok(JSON.stringify(a) === JSON.stringify(b) && JSON.stringify(a) === JSON.stringify(CONFIG.SEED_SNAPSHOT), 'daily seed for 2026-11-23 is stable and matches the snapshot');
+  let uniq = true;
+  for (let i = 0; i < 120; i++) { const d = new Date(Date.UTC(2026, 10, 1 + i)).toISOString().slice(0, 10); [true, false].forEach(f => { if (new Set(dailyPuzzles(d, f)).size !== 7) uniq = false; }); }
+  ok(uniq, 'every day for 120 days gets seven different puzzles');
+  const fake = { no: 23, total: 41250, rounds: [] };
+  for (let i = 0; i < 7; i++) fake.rounds.push({ g: Array.from({ length: 6 }, () => ({ s: 40, z: 2 })), h: ['letter'], slanger: false, ac: false, out: 'time' });
+  fake.rounds[0] = { g: [{ s: 100, z: 6 }], h: [], slanger: true, ac: false, out: 'solved' };
+  const st = shareText(fake), lines = st.split('\n');
+  ok(lines.length === 9, 'share string has exactly seven emoji rows');
+  ok(st.length < 300, 'share string is under 300 characters (' + st.length + ')');
+  const ham = scoreGuess('hamered', p1);
+  ok(ham.corrected === 'hammered' && ham.solved && ham.score === CONFIG.AUTOCORRECT_SCORE, 'a one-letter typo of the answer autocorrects, solves, and stops at 92');
+  const lit = PUZZLES.find(p => p.term === 'lit');
+  ok(!scoreGuess('lot', lit).corrected && !scoreGuess('lot', lit).solved, 'short answers are never autocorrected');
+  ok(!scoreGuess('drunk', p1).corrected, 'real words are never autocorrected');
+  ok(!scoreGuess('jammered', p1).corrected, 'a wrong first letter is never autocorrected');
+  ok(!scoreGuess('hamrd', p1).solved, 'two slips on a short answer are not autocorrected');
+  ok(isBlocked('test') === false, 'the guess filter lets ordinary words through');
+  const rr = Object.assign(newRound(), { g: [{ s: 100 }], solved: true, bestDepth: 10994, tl: 30000 });
+  const fin = roundFinal(rr);
+  ok(fin.tb === 600 && fin.bonus === 750 && fin.final === 10994 + 750 + 600, 'clean solve banks spare-guess and oxygen bonuses');
+  const rt = Object.assign(newRound(), { g: [{ s: 60 }], solved: false, bestDepth: 2000, tl: 0 });
+  ok(roundFinal(rt).final === 2000, 'running out of oxygen keeps the depth reached, with no bonus');
+  ok(CONFIG.PACKS.every(pk => packPuzzles(pk.key).length >= 6), 'every themed pack has at least six words');
+  console.log(out.join('\n') + '\n' + (fails ? fails + ' FAILED' : 'ALL PASSED'));
+  return { pass: fails === 0, results: out };
+}
+
+/* =====================================================================
+   INIT
+   ===================================================================== */
+function init() {
+  load();
+  applySettings();
+  initFX();
+  window.addEventListener('hashchange', route);
+  document.addEventListener('keydown', e => {
+    const m = $('#modal');
+    if (m.hidden) return;
+    if (e.key === 'Escape') { e.preventDefault(); closeModal(); }
+    if (e.key === 'Tab') {
+      const f = [...m.querySelectorAll('button')]; if (!f.length) return;
+      const i = f.indexOf(document.activeElement);
+      if (e.shiftKey && i <= 0) { e.preventDefault(); f[f.length - 1].focus(); }
+      else if (!e.shiftKey && i === f.length - 1) { e.preventDefault(); f[0].focus(); }
+    }
+  });
+  $('#modal').addEventListener('click', e => { if (e.target.id === 'modal') closeModal(); });
+  const unlock = () => { if (S.settings.sound) { const A = audio(); if (A && A.ctx.state === 'suspended') A.ctx.resume(); } };
+  document.addEventListener('pointerdown', unlock, { once: true });
+  document.addEventListener('keydown', unlock, { once: true });
+  window.addEventListener('pagehide', () => { if (P) stopClock(); save(); });
+  route();
+}
+
+const SLANGER = Object.freeze({
+  version: 2,
+  SELFTEST,
+  scoreGuess,
+  dailyPuzzles,
+  debug: { setDate: d => { DATE_OVERRIDE = d; route(); }, state: () => JSON.parse(JSON.stringify(S)) }
+});
+Object.defineProperty(window, 'SLANGER', { value: SLANGER, configurable: false, writable: false });
+
+init();
+})();
+</script>
+</body>
+</html>
