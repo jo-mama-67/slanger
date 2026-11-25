@@ -23,3 +23,4 @@ Netlify publishes the `public/` folder (see `netlify.toml`). Push to `main` and 
 Open the game, then run `SLANGER.SELFTEST()` in the browser console.
 
 Definitions are written for this game, not copied from Urban Dictionary.
+ 
